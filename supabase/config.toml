@@ -1,2 +1,5 @@
+[functions.create-member]
+verify_jwt = false
+
 [functions.login-member]
 verify_jwt = false

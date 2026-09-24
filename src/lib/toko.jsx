@@ -163,8 +163,14 @@ function pesanGalat(error, fallback) {
   return error?.message || fallback;
 }
 
-function pesanFungsiAnggota(error, fallback) {
-  const pesan = pesanGalat(error, fallback);
+async function pesanFungsiAnggota(error, fallback) {
+  let pesan = pesanGalat(error, fallback);
+  if (error?.context?.json) {
+    try {
+      const body = await error.context.json();
+      if (body?.error) pesan = body.error;
+    } catch {}
+  }
   if (/failed to send a request|fetch failed|network error/i.test(pesan)) {
     return "Edge Function create-member belum dapat diakses. Deploy function dengan `supabase functions deploy create-member`, lalu coba lagi.";
   }
@@ -472,7 +478,7 @@ export function PenyediaToko({ children }) {
       const { data, error } = await supabase.functions.invoke("create-member", {
         body: { nama: namaBersih, nim: nimBersih, suara: suaraBersih, password: passwordBersih },
       });
-      if (error) return { gagal: data?.error ?? pesanFungsiAnggota(error, "Akun anggota gagal dibuat.") };
+      if (error) return { gagal: data?.error ?? await pesanFungsiAnggota(error, "Akun anggota gagal dibuat.") };
       if (!data?.profile) return { gagal: "Edge Function tidak mengembalikan profil anggota." };
       item = dariProfil(data.profile);
       emailAuth = data.email ?? null;

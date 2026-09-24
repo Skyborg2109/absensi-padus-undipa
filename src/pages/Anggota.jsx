@@ -472,7 +472,7 @@ function Pindai() {
             <div className="mx-auto w-fit"><Lencana nada={popupSukses.terlambat ? "lambat" : "hadir"} anak={popupSukses.terlambat ? "Terlambat" : "Berhasil"} /></div>
             <h2 className="judul-bab mt-3 text-2xl">{popupSukses.terlambat ? "Absensi tercatat terlambat" : "Absensi berhasil"}</h2>
             <p className="keterangan mt-2">{ popupSukses.terlambat ? `Batas kehadiran ${popupSukses.batas}. Potongan Rp5.000 berlaku sesuai aturan.` : "Kehadiranmu sudah tersimpan dan masuk ke rekap admin."}</p>
-            <button className="btn btn-primer mt-5" type="button" onClick={() => setPopupSukses(null)}>Selesai</button>
+            <button className="btn btn-primer mt-5" type="button" onClick={() => { setPopupSukses(null); requestAnimationFrame(() => hasilRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Selesai</button>
           </div>
         </div>
       )}

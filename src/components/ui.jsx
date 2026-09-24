@@ -168,7 +168,7 @@ export function BarisAnggota({ orang, kanan = null, onPilih = null }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate font-bold leading-tight">{orang.nama}</span>
         <span className="keterangan block truncate">
-          {orang.suara}, NIM {orang.nim}
+          {orang.suara}, {orang.nim ? `NIM ${orang.nim}` : "tanpa NIM"}
         </span>
       </span>
       {kanan}

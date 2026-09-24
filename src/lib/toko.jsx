@@ -460,13 +460,14 @@ export function PenyediaToko({ children }) {
     const nimBersih = String(nim ?? "").trim();
     const suaraBersih = String(suara ?? "").trim();
     const passwordBersih = String(password ?? "");
-    if (!namaBersih) return { gagal: "Nama wajib diisi." };
-    if (!nimBersih) return { gagal: "NIM wajib diisi." };
+    if (!namaBersih && !nimBersih) return { gagal: "Isi nama lengkap atau NIM." };
+    if (nimBersih && !/^[0-9]{6,20}$/.test(nimBersih)) return { gagal: "NIM harus terdiri dari 6–20 digit angka." };
     if (!["Sopran", "Alto", "Tenor", "Bas"].includes(suaraBersih)) return { gagal: "Pilih kelompok suara." };
     if (supabaseAktif && passwordBersih.length < 8) return { gagal: "Password minimal 8 karakter." };
-    if (toko.daftarAnggota.some((a) => a.nim === nimBersih)) return { gagal: `NIM ${nimBersih} sudah terdaftar.` };
+    if (nimBersih && toko.daftarAnggota.some((a) => a.nim === nimBersih)) return { gagal: `NIM ${nimBersih} sudah terdaftar.` };
 
     let item;
+    let emailAuth = null;
     if (supabaseAktif) {
       const { data, error } = await supabase.functions.invoke("create-member", {
         body: { nama: namaBersih, nim: nimBersih, suara: suaraBersih, password: passwordBersih },
@@ -474,11 +475,13 @@ export function PenyediaToko({ children }) {
       if (error) return { gagal: data?.error ?? pesanFungsiAnggota(error, "Akun anggota gagal dibuat.") };
       if (!data?.profile) return { gagal: "Edge Function tidak mengembalikan profil anggota." };
       item = dariProfil(data.profile);
+      emailAuth = data.email ?? null;
     } else {
+      const namaTersimpan = namaBersih || `Anggota NIM ${nimBersih}`;
       item = {
         id: idBaru("A"),
-        nama: namaBersih,
-        nim: nimBersih,
+        nama: namaTersimpan,
+        nim: nimBersih || null,
         suara: suaraBersih,
         angkatan: Number(nimBersih.slice(0, 4)) || new Date().getFullYear(),
         aktif: true,
@@ -487,8 +490,8 @@ export function PenyediaToko({ children }) {
     }
 
     setToko((t) => ({ ...t, daftarAnggota: [...t.daftarAnggota, item] }));
-    tambahNotifikasi(`Anggota baru: ${item.nama}`, `${item.suara}, NIM ${item.nim}. Akun Auth berhasil dibuat dan siap dipakai login.`);
-    return { ok: true, id: item.id };
+    tambahNotifikasi(`Anggota baru: ${item.nama}`, `${item.suara}, ${item.nim ? `NIM ${item.nim}` : "tanpa NIM"}. Akun Auth berhasil dibuat dan siap dipakai login.`);
+    return { ok: true, id: item.id, email: emailAuth };
   }
 
   async function ubahAnggota(id, { nama, nim, suara }) {
@@ -497,15 +500,16 @@ export function PenyediaToko({ children }) {
     const namaBersih = String(nama ?? "").trim();
     const nimBersih = String(nim ?? "").trim();
     const suaraBersih = String(suara ?? "").trim();
-    if (!namaBersih) return { gagal: "Nama wajib diisi." };
-    if (!nimBersih) return { gagal: "NIM wajib diisi." };
+    if (!namaBersih && !nimBersih) return { gagal: "Isi nama lengkap atau NIM." };
+    if (nimBersih && !/^[0-9]{6,20}$/.test(nimBersih)) return { gagal: "NIM harus terdiri dari 6–20 digit angka." };
     if (!["Sopran", "Alto", "Tenor", "Bas"].includes(suaraBersih)) return { gagal: "Pilih kelompok suara." };
-    if (toko.daftarAnggota.some((a) => a.id !== id && a.nim === nimBersih)) return { gagal: `NIM ${nimBersih} sudah dipakai anggota lain.` };
+    if (nimBersih && toko.daftarAnggota.some((a) => a.id !== id && a.nim === nimBersih)) return { gagal: `NIM ${nimBersih} sudah dipakai anggota lain.` };
+    const namaTersimpan = namaBersih || `Anggota NIM ${nimBersih}`;
     if (supabaseAktif) {
-      const { error } = await supabase.from("profiles").update({ nama: namaBersih, nim: nimBersih, suara: suaraBersih }).eq("id", id);
+      const { error } = await supabase.from("profiles").update({ nama: namaTersimpan, nim: nimBersih || null, suara: suaraBersih }).eq("id", id);
       if (error) return { gagal: pesanGalat(error, "Anggota gagal diperbarui di Supabase.") };
     }
-    setToko((t) => ({ ...t, daftarAnggota: t.daftarAnggota.map((a) => (a.id === id ? { ...a, nama: namaBersih, nim: nimBersih, suara: suaraBersih } : a)) }));
+    setToko((t) => ({ ...t, daftarAnggota: t.daftarAnggota.map((a) => (a.id === id ? { ...a, nama: namaTersimpan, nim: nimBersih || null, suara: suaraBersih } : a)) }));
     return { ok: true };
   }
 
@@ -521,7 +525,7 @@ export function PenyediaToko({ children }) {
       daftarAnggota: t.daftarAnggota.filter((a) => a.id !== id),
       daftarAnggotaNonaktif: [...(t.daftarAnggotaNonaktif ?? []), { ...target, aktif: false }],
     }));
-    tambahNotifikasi(`Anggota dinonaktifkan: ${target.nama}`, `NIM ${target.nim} tidak bisa masuk lagi.`);
+    tambahNotifikasi(`Anggota dinonaktifkan: ${target.nama}`, `${target.nim ? `NIM ${target.nim}` : "Tanpa NIM"} tidak bisa masuk lagi.`);
     return { ok: true };
   }
 
@@ -538,7 +542,7 @@ export function PenyediaToko({ children }) {
       daftarAnggota: [...t.daftarAnggota, aktif],
       daftarAnggotaNonaktif: (t.daftarAnggotaNonaktif ?? []).filter((a) => a.id !== id),
     }));
-    tambahNotifikasi(`Anggota diaktifkan kembali: ${target.nama}`, `NIM ${target.nim} dapat login kembali.`);
+    tambahNotifikasi(`Anggota diaktifkan kembali: ${target.nama}`, `${target.nim ? `NIM ${target.nim}` : "Login dengan nama lengkap"} dapat digunakan kembali.`);
     return { ok: true };
   }
 

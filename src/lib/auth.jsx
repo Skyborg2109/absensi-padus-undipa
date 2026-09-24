@@ -156,9 +156,11 @@ export function PenyediaAuth({ children }) {
     if (String(sandiBaru ?? "").length < 8) return { gagal: "Password baru minimal 8 karakter." };
     if (sandiLama === sandiBaru) return { gagal: "Password baru harus berbeda dari password lama." };
     if (supabaseAktif) {
-      if (!pengguna?.nim) return { gagal: "NIM akun tidak ditemukan." };
+      const { data: authData } = await supabase.auth.getUser();
+      const email = authData.user?.email ?? (pengguna?.nim ? `${pengguna.nim}@undipa.ac.id` : null);
+      if (!email) return { gagal: "Email internal akun tidak ditemukan." };
       const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: `${pengguna.nim}@undipa.ac.id`,
+        email,
         password: sandiLama,
       });
       if (loginError) return { gagal: "Password lama salah." };

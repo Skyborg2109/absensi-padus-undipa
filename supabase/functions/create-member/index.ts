@@ -51,35 +51,35 @@ Deno.serve(async (request) => {
   const nim = String(body.nim ?? "").trim();
   const suara = String(body.suara ?? "").trim();
   const password = String(body.password ?? "");
-  if (!nama || !nim || !suara || !password) return json({ error: "Nama, NIM, suara, dan password wajib diisi." }, 400);
-  if (!/^[0-9]{6,20}$/.test(nim)) return json({ error: "NIM harus terdiri dari 6–20 digit angka." }, 400);
+  if ((!nama && !nim) || !suara || !password) return json({ error: "Isi nama lengkap atau NIM, suara, dan password." }, 400);
+  if (nim && !/^[0-9]{6,20}$/.test(nim)) return json({ error: "NIM harus terdiri dari 6–20 digit angka." }, 400);
   if (!["Sopran", "Alto", "Tenor", "Bas"].includes(suara)) return json({ error: "Kelompok suara tidak valid." }, 400);
   if (password.length < 8) return json({ error: "Password minimal 8 karakter." }, 400);
 
-  const { data: existingProfile } = await adminClient
-    .from("profiles")
-    .select("id")
-    .eq("nim", nim)
-    .maybeSingle();
-  if (existingProfile) return json({ error: `NIM ${nim} sudah terdaftar.` }, 409);
+  if (nim) {
+    const { data: existingProfile } = await adminClient.from("profiles").select("id").eq("nim", nim).maybeSingle();
+    if (existingProfile) return json({ error: `NIM ${nim} sudah terdaftar.` }, 409);
+  }
 
-  const email = `${nim}@undipa.ac.id`;
+  const profileId = crypto.randomUUID();
+  const namaTersimpan = nama || `Anggota NIM ${nim}`;
+  const email = nim ? `${nim}@undipa.ac.id` : `anggota-${profileId}@undipa.ac.id`;
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: { role: "anggota", nama, nim, suara },
+    user_metadata: { role: "anggota", nama: namaTersimpan, nim: nim || null, suara },
   });
   if (createError || !created.user) return json({ error: createError?.message || "Akun Auth gagal dibuat." }, 400);
 
   const profile = {
-    id: crypto.randomUUID(),
+    id: profileId,
     user_id: created.user.id,
-    nama,
-    nim,
+    nama: namaTersimpan,
+    nim: nim || null,
     suara,
     role: "anggota",
-    angkatan: Number(nim.slice(0, 4)) || new Date().getFullYear(),
+    angkatan: Number(nim?.slice(0, 4)) || new Date().getFullYear(),
     aktif: true,
   };
   const { data: savedProfile, error: profileError } = await adminClient

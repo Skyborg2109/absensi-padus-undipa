@@ -537,7 +537,7 @@ function Anggota() {
       (a) =>
         (status === "Semua" || (status === "Aktif" ? a.aktif !== false : a.aktif === false)) &&
         (suara === "Semua" || a.suara === suara) &&
-        (kunci === "" || a.nama.toLowerCase().includes(kunci) || a.nim.includes(kunci))
+        (kunci === "" || a.nama.toLowerCase().includes(kunci) || (a.nim ?? "").includes(kunci))
     );
   }, [semuaAnggota, cari, suara, status]);
 
@@ -556,7 +556,7 @@ function Anggota() {
   function bukaUbah(a) {
     setFormMode({ mode: "ubah", id: a.id });
     setNamaForm(a.nama);
-    setNimForm(a.nim);
+    setNimForm(a.nim ?? "");
     setSuaraForm(a.suara);
     setPasswordForm("");
     setGalatForm("");
@@ -588,7 +588,7 @@ function Anggota() {
       return;
     }
     if (formMode?.mode === "tambah" && supabaseAktif) {
-      setKredensialBaru({ nim: nimForm.trim(), email: `${nimForm.trim()}@undipa.ac.id`, password: passwordForm });
+      setKredensialBaru({ nim: nimForm.trim(), email: hasilSimpan.email ?? "Email internal dibuat otomatis", password: passwordForm });
     }
     setFormMode(null);
     setPasswordForm("");
@@ -695,8 +695,8 @@ function Anggota() {
       {kredensialBaru && (
         <div className="toast mb-3" role="status" style={{ borderColor: "var(--beludru)" }}>
           <p className="font-extrabold">Kredensial akun baru — simpan sebelum meninggalkan halaman.</p>
-          <p className="keterangan mt-2">Login NIM: <b className="angka" style={{ color: "var(--tinta)" }}>{kredensialBaru.nim}</b></p>
-          <p className="keterangan">Login email: <b style={{ color: "var(--tinta)" }}>{kredensialBaru.email}</b></p>
+          {kredensialBaru.nim ? <p className="keterangan mt-2">Login NIM: <b className="angka" style={{ color: "var(--tinta)" }}>{kredensialBaru.nim}</b></p> : <p className="keterangan mt-2">Login nama lengkap: <b style={{ color: "var(--tinta)" }}>{namaForm.trim()}</b></p>}
+          <p className="keterangan">Email internal: <b style={{ color: "var(--tinta)" }}>{kredensialBaru.email}</b></p>
           <p className="mt-2 font-extrabold">Password awal: <span className="angka">{kredensialBaru.password}</span></p>
         </div>
       )}
@@ -709,12 +709,12 @@ function Anggota() {
             {formMode.mode === "ubah"
               ? "Perubahan NIM langsung berlaku untuk login berikutnya."
               : supabaseAktif
-                ? "Akun Auth dibuat otomatis. Berikan password awal kepada anggota."
-                : "Anggota baru langsung bisa masuk dengan NIM + kata sandi demo."}
+                ? "Isi nama lengkap atau NIM. Akun Auth dibuat otomatis dan password awal diberikan kepada anggota."
+                : "Isi nama lengkap atau NIM. Anggota baru bisa masuk dengan kata sandi demo."}
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_.8fr_.7fr_.8fr]">
             <label>
-              <span className="cap">Nama lengkap</span>
+              <span className="cap">Nama lengkap (atau NIM)</span>
               <input
                 className="masukkan"
                 value={namaForm}
@@ -724,7 +724,7 @@ function Anggota() {
               />
             </label>
             <label>
-              <span className="cap">NIM</span>
+              <span className="cap">NIM (opsional)</span>
               <input
                 className="masukkan angka"
                 value={nimForm}
@@ -774,7 +774,7 @@ function Anggota() {
       {/* Konfirmasi hapus */}
       {hapusTarget && (
         <div className="toast mb-3" role="alert" style={{ borderColor: "var(--bata)" }}>
-          <p className="font-extrabold">Nonaktifkan {hapusTarget.nama} (NIM {hapusTarget.nim})?</p>
+          <p className="font-extrabold">Nonaktifkan {hapusTarget.nama} ({hapusTarget.nim ? `NIM ${hapusTarget.nim}` : "tanpa NIM"})?</p>
           <p className="keterangan mt-1">Akunnya tidak bisa masuk lagi sampai diaktifkan kembali. Riwayat pindaian yang sudah tercatat tetap tersimpan.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
@@ -811,7 +811,7 @@ function Anggota() {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-bold leading-tight">{a.nama}</span>
-                <span className="keterangan block truncate">{a.suara}, NIM {a.nim}</span>
+                <span className="keterangan block truncate">{a.suara}, {a.nim ? `NIM ${a.nim}` : "tanpa NIM"}</span>
                 <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <Lencana nada={nonaktif ? "netral" : lay.nada} anak={nonaktif ? "Nonaktif" : lay.label} />
                 </span>

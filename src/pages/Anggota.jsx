@@ -31,7 +31,7 @@ export default function Anggota() {
               <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--daun)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, flex: "none" }}>M</span>
               <span className="min-w-0 leading-tight">
                 <span className="block max-w-[10rem] truncate font-extrabold sm:max-w-none">{saya.nama}</span>
-                <span className="keterangan block max-w-[10rem] truncate sm:max-w-none" style={{ fontSize: 12.5 }}>{saya.suara}, NIM {saya.nim}</span>
+                <span className="keterangan block max-w-[10rem] truncate sm:max-w-none" style={{ fontSize: 12.5 }}>{saya.suara}, {saya.nim ? `NIM ${saya.nim}` : "tanpa NIM"}</span>
               </span>
             </Link>
           </div>

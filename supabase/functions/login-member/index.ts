@@ -62,8 +62,14 @@ Deno.serve(async (request) => {
   if (!profil) return json({ error: "NIM atau nama lengkap tidak terdaftar." }, 401);
 
   const authClient = createClient(supabaseUrl, anonKey);
+  const { data: userRecord } = profil.user_id
+    ? await adminClient.auth.admin.getUserById(profil.user_id)
+    : { data: null };
+  const email = userRecord?.user?.email ?? (profil.nim ? `${profil.nim}@undipa.ac.id` : null);
+  if (!email) return json({ error: "Email internal akun tidak ditemukan." }, 500);
+
   const { data, error } = await authClient.auth.signInWithPassword({
-    email: `${profil.nim}@undipa.ac.id`,
+    email,
     password,
   });
   if (error || !data.session) return json({ error: "Kata sandi salah." }, 401);

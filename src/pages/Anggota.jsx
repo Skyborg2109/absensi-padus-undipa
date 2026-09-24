@@ -160,12 +160,18 @@ function zonaLokasi(jarak) {
 
 function pesanKamera(e) {
   const m = String(e?.message ?? e ?? "");
-  if (/permission|notallowed|denied/i.test(m))
-    return "Izin kamera ditolak. Aktifkan izin kamera di browser lalu nyalakan ulang, atau ketik kode manual di bawah.";
-  if (/notfound|nodevice|devices/i.test(m))
+  if (typeof window !== "undefined" && !window.isSecureContext) {
+    return "Kamera hanya bisa aktif melalui HTTPS atau localhost. Buka kembali memakai HTTPS, atau ketik kode manual.";
+  }
+  if (/permission|notallowed|denied/i.test(m)) {
+    return "Izin kamera ditolak. Klik ikon kamera pada address bar, izinkan akses, lalu muat ulang halaman atau ketik kode manual.";
+  }
+  if (/notfound|nodevice|devices/i.test(m)) {
     return "Tidak ada kamera di perangkat ini. Ketik kode sesi manual di bawah.";
-  if (/secure|https/i.test(m))
-    return "Kamera butuh koneksi aman (HTTPS atau localhost). Buka lewat HTTPS, atau ketik kode manual.";
+  }
+  if (/secure|https|mediaDevices|getUserMedia/i.test(m)) {
+    return "Browser tidak dapat membuka kamera. Periksa izin kamera dan gunakan HTTPS atau localhost, atau ketik kode manual.";
+  }
   return "Kamera gagal dinyalakan. Periksa izin browser, atau ketik kode manual di bawah.";
 }
 

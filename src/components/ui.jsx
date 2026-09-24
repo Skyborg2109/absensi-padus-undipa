@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
+import QRCode from "qrcode";
 import { useNavigate } from "react-router-dom";
 import { SUARA } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
@@ -121,41 +122,32 @@ export function Lencana({ nada = "netral", anak }) {
   );
 }
 
-/* QR tiruan yang digambar dari token — cukup untuk prototipe tanpa dependensi. */
-export function QrTiruan({ token = "PDU" }) {
-  const sel = [];
-  let bibit = 0;
-  for (const c of token) bibit += c.charCodeAt(0);
-  const acak = (i) => {
-    const x = Math.sin(bibit + i * 91.7) * 10000;
-    return x - Math.floor(x) > 0.46;
-  };
-  for (let y = 0; y < 21; y++)
-    for (let x = 0; x < 21; x++) {
-      const sudut = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13);
-      if (!sudut && acak(y * 21 + x)) sel.push([x, y]);
-    }
-  return (
-    <svg viewBox="0 0 25 25" role="img" aria-label={`Kode QR sesi ${token}`} className="h-auto w-full">
-      <rect x="0" y="0" width="25" height="25" fill="#fff" />
-      {sel.map(([x, y], i) => (
-        <rect key={i} x={x + 2} y={y + 2} width="0.92" height="0.92" fill="var(--tinta)" />
-      ))}
-      <Penanda x={2} y={2} />
-      <Penanda x={16} y={2} />
-      <Penanda x={2} y={16} />
-    </svg>
-  );
-}
+export function QrSesi({ token = "PDU" }) {
+  const [sumber, setSumber] = useState("");
+  const [galat, setGalat] = useState(false);
 
-function Penanda({ x, y }) {
-  return (
-    <g>
-      <rect x={x} y={y} width="7" height="7" fill="var(--beludru)" />
-      <rect x={x + 1} y={y + 1} width="5" height="5" fill="#fff" />
-      <rect x={x + 2} y={y + 2} width="3" height="3" fill="var(--beludru)" />
-    </g>
-  );
+  useEffect(() => {
+    let dibatalkan = false;
+    setSumber("");
+    setGalat(false);
+    QRCode.toDataURL(token, {
+      width: 360,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: { dark: "#2a2b52", light: "#ffffff" },
+    }).then((url) => {
+      if (!dibatalkan) setSumber(url);
+    }).catch(() => {
+      if (!dibatalkan) setGalat(true);
+    });
+    return () => {
+      dibatalkan = true;
+    };
+  }, [token]);
+
+  if (galat) return <div className="toast" role="alert">QR sesi gagal dibuat. Muat ulang halaman.</div>;
+  if (!sumber) return <div className="qr-mati">Menyiapkan QR sesi…</div>;
+  return <img src={sumber} alt={`Kode QR sesi ${token}`} className="h-auto w-full" />;
 }
 
 export function BarisAnggota({ orang, kanan = null, onPilih = null }) {

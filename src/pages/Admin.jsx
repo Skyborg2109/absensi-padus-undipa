@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Lencana, KepalaBab, PetaRadius, QrTiruan, TombolKeluar } from "../components/ui.jsx";
+import { Lencana, KepalaBab, PetaRadius, QrSesi, TombolKeluar } from "../components/ui.jsx";
 import { aturan, rupiah, nilaiKelayakan, SUARA } from "../data/mock.js";
 import { pakaiToko } from "../lib/toko.jsx";
 
@@ -330,20 +330,33 @@ function Jadwal() {
 
 /* ——— Sesi + QR ——— */
 function Sesi() {
-  const { sesi, bukaSesi, aturSesi, absensiSesi, aturUlang, daftarAnggota } = pakaiToko();
+  const { sesi, bukaSesi, aturSesi, hapusSesi, absensiSesi, aturUlang, daftarAnggota } = pakaiToko();
+  const [konfirmasiHapus, setKonfirmasiHapus] = useState(false);
+  const [pesan, setPesan] = useState("");
   if (!sesi) return <SesiBaru onBuka={bukaSesi} />;
   const buka = sesi.status === "terbuka";
   const ditutup = sesi.status === "ditutup";
   const sudah = absensiSesi(sesi.token);
   const kandidat = daftarAnggota.filter((a) => !sudah.some((r) => r.anggotaId === a.id));
+
+  async function jalankanHapus() {
+    const hasil = await hapusSesi();
+    if (hasil?.gagal) {
+      setPesan(hasil.gagal);
+      return;
+    }
+    setKonfirmasiHapus(false);
+  }
+
   return (
     <div className="muncul">
       <KepalaBab atas="Satu anggota, satu pindaian" judul="Sesi dan kode QR" Charity="Kode hanya berlaku saat sesi dibuka — layar pindai anggota mengikutinya otomatis. GPS wajib lolos sebelum waktu diperiksa. Pindaian kedua dari orang yang sama ditolak sebagai duplikat." />
+      {pesan && <p role="alert" className="toast mb-4" style={{ borderColor: "var(--bata)", color: "var(--bata)" }}>{pesan}</p>}
       <div className="grid gap-4 lg:grid-cols-[.95fr_1.05fr]">
         <div className="lembar-qr p-5 text-center">
           {buka ? (
             <>
-              <QrTiruan token={sesi.token} />
+              <QrSesi token={sesi.token} />
               <p className="angka mt-3 text-xl font-extrabold" style={{ letterSpacing: "-0.02em" }}>{sesi.token}</p>
               <p className="keterangan mt-1">Dibuka {sesi.dibukaPada} di {sesi.lokasi}. Disegarkan tiap 60 detik. Jangan bagikan tangkapan layar — pindaian tetap memeriksa akun dan lokasi.</p>
               <div className="mt-2"><Lencana nada="hadir" anak={`Sesi terbuka — ${sudah.length} sudah terpindai`} /></div>
@@ -354,9 +367,22 @@ function Sesi() {
             </>
           ) : ditutup ? (
             <>
-              <p className="judul-bab text-2xl">Sesi ditutup.</p>
-              <p className="keterangan mt-2">Kode tidak berlaku. Anggota yang memindai sekarang akan menerima penolakan sesi ditutup.</p>
-              <div className="mt-4"><button className="btn btn-primer" onClick={() => aturSesi("terbuka")}>Buka kembali</button></div>
+               <p className="judul-bab text-2xl">Sesi ditutup.</p>
+               <p className="keterangan mt-2">Kode tidak berlaku. Anggota yang memindai sekarang akan menerima penolakan sesi ditutup.</p>
+               <div className="mt-4 flex flex-wrap justify-center gap-2">
+                 <button className="btn btn-primer" onClick={() => aturSesi("terbuka")}>Buka kembali</button>
+                 <button className="btn btn-kertas" onClick={() => { setKonfirmasiHapus(true); setPesan(""); }}>Hapus sesi</button>
+               </div>
+               {konfirmasiHapus && (
+                 <div className="toast mt-4 text-left" role="alert" style={{ borderColor: "var(--bata)" }}>
+                   <p className="font-extrabold">Hapus sesi {sesi.nama}?</p>
+                   <p className="keterangan mt-1">Riwayat absensi tetap tersimpan, tetapi sesi dan QR tidak dapat digunakan lagi.</p>
+                   <div className="mt-3 flex flex-wrap justify-center gap-2">
+                     <button className="btn btn-primer" style={{ background: "var(--bata)" }} onClick={jalankanHapus}>Ya, hapus sesi</button>
+                     <button className="btn btn-kertas" onClick={() => setKonfirmasiHapus(false)}>Batal</button>
+                   </div>
+                 </div>
+               )}
             </>
           ) : (
             <>

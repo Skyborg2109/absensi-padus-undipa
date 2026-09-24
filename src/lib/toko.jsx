@@ -344,6 +344,19 @@ export function PenyediaToko({ children }) {
     return { ok: true };
   }
 
+  async function hapusSesi() {
+    if (!toko.sesi) return { gagal: "Sesi tidak ditemukan." };
+    if (toko.sesi.status !== "ditutup") return { gagal: "Tutup sesi terlebih dahulu sebelum menghapus." };
+    if (supabaseAktif) {
+      const { error } = await supabase.from("sesi").delete().eq("id", toko.sesi.id);
+      if (error) return { gagal: pesanGalat(error, "Sesi gagal dihapus dari Supabase.") };
+    }
+    const namaSesi = toko.sesi.nama;
+    setToko((t) => ({ ...t, sesi: null }));
+    tambahNotifikasi(`Sesi dihapus: ${namaSesi}`, "Riwayat absensi sesi tetap tersimpan dan tidak ikut terhapus.");
+    return { ok: true };
+  }
+
   function sudahAbsen(anggotaId, token) {
     return toko.absensi.some((r) => r.anggotaId === anggotaId && r.token === token);
   }
@@ -520,6 +533,7 @@ export function PenyediaToko({ children }) {
         hapusJadwal,
         bukaSesi,
         aturSesi,
+        hapusSesi,
         sudahAbsen,
         absensiSesi,
         catatHadir,

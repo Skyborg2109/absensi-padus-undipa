@@ -9,7 +9,7 @@
 
 ## Project shape
 - Single Vite app, not a workspace: `package.json` scripts are the only task entrypoints.
-- Stack: Vite 8, React 19, React Router 7, Tailwind CSS 4 through `@tailwindcss/vite`, `html5-qrcode`, and `@supabase/supabase-js`.
+- Stack: Vite 8, React 19, React Router 7, Tailwind CSS 4 through `@tailwindcss/vite`, `html5-qrcode`, `qrcode`, and `@supabase/supabase-js`.
 - Runtime flow: `src/main.jsx` → `src/App.jsx` → role-guarded routes in `src/pages/`.
 - `src/App.jsx` wraps the app in `PenyediaAuth` then `PenyediaToko`; admin routes are `/admin/:tab`, member routes are `/anggota/:tab`.
 - Admin tabs are declared in the `TAB` array in `src/pages/Admin.jsx`; member tabs are declared in `src/pages/Anggota.jsx`. URL tabs use `useParams` and unknown tabs fall back to `dasbor`.
@@ -28,7 +28,7 @@
 - `aturUlang()` is local-demo-only; in Supabase mode it refuses to delete remote production data.
 
 ## Attendance implementation
-- `src/pages/Admin.jsx` Sesi generates a fake deterministic `QrTiruan`; it is not a production QR encoder.
+- `src/pages/Admin.jsx` Sesi renders a real scannable QR with `QrSesi` from `qrcode`; `src/pages/Anggota.jsx` scans it with the dynamically imported `html5-qrcode`.
 - `src/pages/Anggota.jsx` Pindai dynamically imports `html5-qrcode` for camera scanning, then uses browser `navigator.geolocation` and haversine distance to the hard-coded aula coordinates (-5.1405, 119.4832).
 - Attendance is check-in only: QR, GPS, and time are all required. GPS unavailable, out of radius, invalid/paused/closed token, or a duplicate member/session scan must fail clearly; never silently widen the radius.
 - The attendance radius is a hard default of 100 m. The 500 m campus area is only a location display heuristic, not an attendance allowance.

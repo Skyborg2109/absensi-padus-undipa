@@ -32,7 +32,7 @@
 - `src/pages/Anggota.jsx` Pindai dynamically imports `html5-qrcode` for camera scanning, then uses browser `navigator.geolocation` and haversine distance to the hard-coded aula coordinates (-5.1405, 119.4832).
 - Attendance is check-in only: QR, GPS, and time are all required. GPS unavailable, out of radius, invalid/paused/closed token, or a duplicate member/session scan must fail clearly; never silently widen the radius.
 - The attendance radius is a hard default of 100 m. The 500 m campus area is only a location display heuristic, not an attendance allowance.
-- Camera/geolocation flows require browser permission and HTTPS or localhost. Manual token entry and the “Mode uji” slider are explicit fallbacks.
+- Camera/geolocation flows require browser permission and HTTPS or localhost. Attendance auto-validates after QR success; the “Mode uji” slider is only an explicit test fallback.
 - `bukaSesi()` creates the session token and `batasMenit = current time + toleransi`; session statuses are `terbuka`, `jeda`, and `ditutup`.
 
 ## Business rules from `prd.md`

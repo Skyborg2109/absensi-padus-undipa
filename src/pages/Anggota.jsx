@@ -243,6 +243,7 @@ function Pindai() {
     if (!bersih || tokenTerpakai.current === bersih) return;
     tokenTerpakai.current = bersih;
     setKameraError("");
+    setHasil({ nada: "netral", judul: "QR berhasil dibaca.", isi: "Memeriksa sesi, lokasi, dan status kehadiran." });
     if (jarakEfektif == null) {
       setMenungguLokasi(true);
       setHasil({ nada: "lambat", judul: "Menunggu lokasi.", isi: "QR sudah terbaca. Tunggu GPS selesai agar kehadiran dapat divalidasi." });
@@ -375,7 +376,7 @@ function Pindai() {
           {kameraAktif ? (
             <>
               <PemindaiKamera aktif={kameraAktif} onBerhasil={saatBerhasilScan} onGagal={(p) => { setKameraError(p); setKameraAktif(false); }} />
-              <p className="keterangan mt-2">Arahkan bingkai ke kode QR di layar aula. Kamera berhenti otomatis setelah kode tertangkap.</p>
+              <p className="keterangan mt-2">Arahkan bingkai ke kode QR di layar aula. Setelah terbaca, kehadiran diproses otomatis.</p>
               <button className="btn btn-kertas mt-2 w-full" type="button" onClick={() => setKameraAktif(false)}>Matikan kamera</button>
             </>
           ) : (

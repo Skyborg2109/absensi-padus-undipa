@@ -231,6 +231,7 @@ function Pindai() {
   const [pakaiUji, setPakaiUji] = useState(false);
   const [ujiJarak, setUjiJarak] = useState(34);
   const [hasil, setHasil] = useState(null);
+  const tokenTerpakai = useRef("");
 
   const sudahPernah = sesi ? sudahAbsen(pengguna?.id, sesi.token) : false;
   const adaSesi = !!sesi;
@@ -240,10 +241,10 @@ function Pindai() {
 
   function saatBerhasilScan(teks) {
     const bersih = String(teks ?? "").trim();
-    if (!bersih) return;
+    if (!bersih || tokenTerpakai.current === bersih) return;
+    tokenTerpakai.current = bersih;
     setTokenPindaian(bersih);
     setKameraError("");
-    setKameraAktif(false); // hemat baterai setelah kode tertangkap
   }
 
   const pantauId = useRef(null);

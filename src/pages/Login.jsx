@@ -18,7 +18,7 @@ export default function Login() {
   async function masuk(e) {
     e.preventDefault();
     if (!identitas.trim() || !sandi) {
-      setGalat("Isi NIM dan kata sandi sebelum masuk.");
+      setGalat("Isi NIM atau nama lengkap dan kata sandi sebelum masuk.");
       return;
     }
     const hasil = await masukAnggota(identitas, sandi);
@@ -59,19 +59,19 @@ export default function Login() {
           </p>
           <h1 className="display text-5xl sm:text-6xl">Masuk ke buku hadir.</h1>
           <p className="mt-4 max-w-[52ch] text-[16px]" style={{ color: "var(--tinta-lunak)" }}>
-            Masuk dengan NIM untuk memindai kehadiran, melihat riwayat,
+            Masuk dengan NIM atau nama lengkap untuk memindai kehadiran, melihat riwayat,
             dan memantau fee. Halaman ini untuk anggota padus.
           </p>
 
           <form onSubmit={masuk} className="buku mt-6 max-w-xl p-5" noValidate>
             <div className="grid gap-3">
               <label>
-                <span className="cap">NIM</span>
+                <span className="cap">NIM atau nama lengkap</span>
                 <input
                   className="masukkan"
                   value={identitas}
                   onChange={(e) => setIdentitas(e.target.value)}
-                  placeholder="Misal: 231105"
+                  placeholder="Misal: 231105 atau Maria Lestari"
                   autoComplete="username"
                 />
               </label>

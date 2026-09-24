@@ -161,18 +161,18 @@ function zonaLokasi(jarak) {
 function pesanKamera(e) {
   const m = String(e?.message ?? e ?? "");
   if (typeof window !== "undefined" && !window.isSecureContext) {
-    return "Kamera hanya bisa aktif melalui HTTPS atau localhost. Buka kembali memakai HTTPS, atau ketik kode manual.";
+    return "Kamera hanya bisa aktif melalui HTTPS atau localhost. Buka kembali memakai HTTPS.";
   }
   if (/permission|notallowed|denied/i.test(m)) {
-    return "Izin kamera ditolak. Klik ikon kamera pada address bar, izinkan akses, lalu muat ulang halaman atau ketik kode manual.";
+    return "Izin kamera ditolak. Klik ikon kamera pada address bar, izinkan akses, lalu muat ulang halaman.";
   }
   if (/notfound|nodevice|devices/i.test(m)) {
-    return "Tidak ada kamera di perangkat ini. Ketik kode sesi manual di bawah.";
+    return "Tidak ada kamera di perangkat ini. Gunakan perangkat yang memiliki kamera.";
   }
   if (/secure|https|mediaDevices|getUserMedia/i.test(m)) {
-    return "Browser tidak dapat membuka kamera. Periksa izin kamera dan gunakan HTTPS atau localhost, atau ketik kode manual.";
+    return "Browser tidak dapat membuka kamera. Periksa izin kamera dan gunakan HTTPS atau localhost.";
   }
-  return "Kamera gagal dinyalakan. Periksa izin browser, atau ketik kode manual di bawah.";
+  return "Kamera gagal dinyalakan. Periksa izin browser dan muat ulang halaman.";
 }
 
 /* Jendela kamera: Html5Qrcode me-render video ke div #qr-pembaca. */
@@ -223,14 +223,13 @@ function Pindai() {
   const { sesi, sudahAbsen, catatHadir } = pakaiToko();
   const [kameraAktif, setKameraAktif] = useState(false);
   const [kameraError, setKameraError] = useState("");
-  const [tokenPindaian, setTokenPindaian] = useState("");
-  const [kodeManual, setKodeManual] = useState("");
   const [lokasi, setLokasi] = useState(null); // { jarak, akurasi }
   const [gpsStatus, setGpsStatus] = useState("mati"); // mati|memuat|ok|gagal
   const [gpsPesan, setGpsPesan] = useState("");
   const [pakaiUji, setPakaiUji] = useState(false);
   const [ujiJarak, setUjiJarak] = useState(34);
   const [hasil, setHasil] = useState(null);
+  const [menungguLokasi, setMenungguLokasi] = useState(false);
   const tokenTerpakai = useRef("");
 
   const sudahPernah = sesi ? sudahAbsen(pengguna?.id, sesi.token) : false;
@@ -243,8 +242,14 @@ function Pindai() {
     const bersih = String(teks ?? "").trim();
     if (!bersih || tokenTerpakai.current === bersih) return;
     tokenTerpakai.current = bersih;
-    setTokenPindaian(bersih);
     setKameraError("");
+    if (jarakEfektif == null) {
+      setMenungguLokasi(true);
+      setHasil({ nada: "lambat", judul: "Menunggu lokasi.", isi: "QR sudah terbaca. Tunggu GPS selesai agar kehadiran dapat divalidasi." });
+      return;
+    }
+    setMenungguLokasi(false);
+    void catat(bersih);
   }
 
   const pantauId = useRef(null);
@@ -307,22 +312,13 @@ function Pindai() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pakaiUji, adaSesi]);
 
-  function pakaiKodeManual(e) {
-    e.preventDefault();
-    if (kodeManual.trim()) {
-      setTokenPindaian(kodeManual.trim());
-      setKameraError("");
-    }
-  }
-
-  async function catat() {
-    const token = tokenPindaian.trim();
+  async function catat(token) {
     if (!sesi)
       return setHasil({ nada: "lambat", judul: "Belum ada sesi.", isi: "Admin belum membuka sesi. Tunggu sesi dibuka, lalu pindai ulang." });
     if (sesi.status !== "terbuka")
       return setHasil({ nada: "alpa", judul: sesi.status === "jeda" ? "Sesi sedang dijeda." : "Sesi sudah ditutup.", isi: "Kode tidak berlaku saat ini. Tunggu admin membuka sesi, lalu pindai ulang." });
     if (!token)
-      return setHasil({ nada: "alpa", judul: "Belum ada kode.", isi: "Arahkan kamera ke kode QR di layar aula dulu, atau ketik kode sesi manual." });
+       return setHasil({ nada: "alpa", judul: "QR belum terbaca.", isi: "Arahkan kamera ke QR sesi di layar aula lalu tunggu sampai berhasil." });
     if (jarakEfektif == null)
       return setHasil({ nada: "lambat", judul: "Lokasi belum siap.", isi: "Tunggu GPS menemukan lokasimu — status zona tampil otomatis di atas. Tanpa GPS, absensi tidak bisa divalidasi." });
     if (token !== sesi.token)
@@ -349,6 +345,12 @@ function Pindai() {
       return setHasil({ nada: "lambat", judul: "Tercatat terlambat.", isi: `Melewati batas ${sesi.batasTepat}. Potongan Rp5.000 berlaku satu kali untuk kejadian ini. Tercatat di rekap admin.` });
     return setHasil({ nada: "hadir", judul: "Hadir, tepat waktu.", isi: `Hari ini ${jam}, jarak ${formatJarak(jarakEfektif)}. Akurasi ±${akurasiEfektif ?? "?"} meter tersimpan untuk verifikasi dan sudah masuk rekap admin.` });
   }
+
+  useEffect(() => {
+    if (!menungguLokasi || jarakEfektif == null || !tokenTerpakai.current) return;
+    setMenungguLokasi(false);
+    void catat(tokenTerpakai.current);
+  }, [jarakEfektif, menungguLokasi]);
 
   const zona = zonaLokasi(jarakEfektif);
 
@@ -384,14 +386,6 @@ function Pindai() {
             </div>
           )}
           {kameraError && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>{kameraError}</p>}
-          <div className="buku mt-3 p-3">
-            <p className="keterangan">Kode terpindai: <b className="angka" style={{ color: "var(--tinta)" }}>{tokenPindaian || "— belum ada —"}</b></p>
-            <form onSubmit={pakaiKodeManual} className="mt-2 flex flex-col gap-2 sm:flex-row">
-              <input className="masukkan" value={kodeManual} onChange={(e) => setKodeManual(e.target.value)} placeholder="Ketik kode manual, misal PDU-2109-7K2Q" aria-label="Kode sesi manual" />
-              <button className="btn btn-kertas whitespace-nowrap" type="submit">Gunakan kode</button>
-            </form>
-            <p className="keterangan mt-2">Untuk HP tanpa kamera atau izin ditolak.</p>
-          </div>
         </div>
         <div>
           <div className="lembar-qr p-4">
@@ -432,7 +426,7 @@ function Pindai() {
             )}
           </div>
           <div className="buku mt-3 p-4">
-            <p className="mb-2 text-sm font-extrabold">Langkah 3 — Catat kehadiran</p>
+            <p className="mb-2 text-sm font-extrabold">Langkah 3 — Hasil kehadiran</p>
             {sesi.status !== "terbuka" ? (
               <div className="toast" role="status">
                 <p className="flex items-center gap-2 font-extrabold">
@@ -440,14 +434,12 @@ function Pindai() {
                   {sesi.status === "jeda" ? "Sesi dijeda admin — tombol aktif lagi setelah dibuka." : "Sesi sudah ditutup admin."}
                 </p>
               </div>
-            ) : sudahPernah ? (
-              <div className="toast" role="status" style={{ borderColor: "var(--daun)" }}>
-                <p className="flex items-center gap-2 font-extrabold"><Lencana nada="hadir" anak="Sudah tercatat" />Kehadiranmu sesi ini sudah masuk.</p>
-                <p className="keterangan mt-1">Lihat di Riwayat dan Rekap admin.</p>
-              </div>
-            ) : (
-              <button className="btn btn-primer w-full" type="button" onClick={catat}>Catat kehadiran</button>
-            )}
+             ) : sudahPernah ? (
+               <div className="toast" role="status" style={{ borderColor: "var(--daun)" }}>
+                 <p className="flex items-center gap-2 font-extrabold"><Lencana nada="hadir" anak="Sudah tercatat" />Kehadiranmu sesi ini sudah masuk.</p>
+                 <p className="keterangan mt-1">Lihat di Riwayat dan Rekap admin.</p>
+               </div>
+             ) : null}
             {hasil ? (
               <div className="toast muncul mt-3" role="status" style={{ borderColor: hasil.nada === "hadir" ? "var(--daun)" : hasil.nada === "lambat" ? "#C9A227" : "var(--bata)" }}>
                 <p className="flex items-center gap-2 font-extrabold"><Lencana nada={hasil.nada} anak={hasil.nada === "hadir" ? "Tepat waktu" : hasil.nada === "lambat" ? "Terlambat" : "Ditolak"} />{hasil.judul}</p>

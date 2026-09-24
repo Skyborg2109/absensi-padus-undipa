@@ -54,7 +54,7 @@ async function profilUntukSesi(sesi) {
 }
 
 function pesanGalatAuth(message) {
-  if (/invalid login credentials/i.test(message)) return "NIM, nama lengkap, atau kata sandi salah.";
+  if (/invalid login credentials/i.test(message)) return "NIM atau kata sandi salah.";
   if (/email not confirmed/i.test(message)) return "Akun belum dikonfirmasi. Hubungi admin.";
   return message || "Autentikasi Supabase gagal.";
 }
@@ -94,7 +94,7 @@ export function PenyediaAuth({ children }) {
   async function masukAnggota(identitas, sandi) {
     if (supabaseAktif) {
       const { data, error } = await supabase.functions.invoke("login-member", {
-        body: { identifier: identitas, password: sandi },
+        body: { nim: identitas, password: sandi },
       });
       if (error) return { gagal: data?.error ?? pesanFungsiLogin(error, "Login anggota gagal.") };
       if (!data?.session) return { gagal: "Login anggota tidak mengembalikan sesi." };
@@ -113,10 +113,9 @@ export function PenyediaAuth({ children }) {
     }
 
     const bersih = identitas.trim();
-    const kunci = bersih.toLowerCase();
     const daftar = daftarAnggotaAktif();
-    const cocok = daftar.find((a) => a.nim === bersih || a.nama.toLowerCase() === kunci);
-    if (!cocok) return { gagal: "NIM atau nama lengkap tidak terdaftar. Periksa kembali." };
+    const cocok = daftar.find((a) => a.nim === bersih);
+    if (!cocok) return { gagal: "NIM tidak terdaftar. Periksa kembali." };
     if (sandi !== SANDI_DEMO) return { gagal: "Kata sandi salah. Coba lagi atau hubungi pelatih." };
     const sesi = { peran: "anggota", id: cocok.id, nama: cocok.nama, nim: cocok.nim, suara: cocok.suara };
     localStorage.setItem(KUNCI_SESI, JSON.stringify(sesi));

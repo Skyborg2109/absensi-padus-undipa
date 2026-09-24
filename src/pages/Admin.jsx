@@ -1,0 +1,894 @@
+import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { Lencana, KepalaBab, PetaRadius, QrTiruan, TombolKeluar } from "../components/ui.jsx";
+import { aturan, rupiah, nilaiKelayakan, SUARA } from "../data/mock.js";
+import { pakaiToko } from "../lib/toko.jsx";
+
+const TAB = [
+  ["dasbor", "Dasbor", null],
+  ["jadwal", "Jadwal", "jadwal"],
+  ["sesi", "Sesi dan QR", null],
+  ["anggota", "Anggota", "anggota"],
+  ["rekap", "Rekap", null],
+  ["izin", "Izin dan sakit", "izin"],
+  ["aturan", "Aturan dan fee", "9"],
+  ["acara", "Gladi dan wisuda", null],
+  ["laporan", "Laporan", null],
+  ["notifikasi", "Notifikasi", "notifikasi"],
+];
+
+export default function Admin() {
+  const { tab = "dasbor" } = useParams();
+  const aktif = TAB.some(([t]) => t === tab) ? tab : "dasbor";
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { jadwal, pengajuan, notifikasi, sesi, daftarAnggota } = pakaiToko();
+  const hitung = {
+    jadwal: jadwal.length,
+    anggota: daftarAnggota.length,
+    izin: pengajuan.filter((p) => p.status === "Menunggu").length || null,
+    notifikasi: notifikasi.filter((n) => n.belumDibaca).length || null,
+  };
+  return (
+    <div className="min-h-screen">
+      <header className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 pt-6">
+        <div className="flex items-center gap-3">
+          <button className="btn btn-kertas lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-controls="admin-sidebar">
+            Menu
+          </button>
+          <Link to="/beranda" className="flex items-center gap-3" aria-label="Kembali ke halaman depan">
+            <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--beludru)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800 }}>P</span>
+            <span className="leading-tight">
+              <span className="block font-extrabold">Buku admin</span>
+              <span className="keterangan" style={{ fontSize: 12.5 }}>Padus Undipa{sesi ? `, ${sesi.tanggal}` : ""}</span>
+            </span>
+          </Link>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <Link className="btn btn-kertas" to="/anggota">Lihat sebagai anggota</Link>
+          <Link className="btn btn-primer" to="/admin/sesi">Buka sesi</Link>
+          <TombolKeluar />
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-6xl gap-6 px-5 pb-20 pt-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+        {sidebarOpen && <button type="button" className="fixed inset-0 z-30 bg-[#2a2b52]/30 lg:hidden" aria-label="Tutup menu" onClick={() => setSidebarOpen(false)} />}
+        <aside id="admin-sidebar" className={`buku fixed inset-y-0 left-0 z-40 w-[min(19rem,86vw)] overflow-y-auto p-3 transition-transform lg:sticky lg:top-4 lg:z-auto lg:inset-y-auto lg:h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="flex items-center justify-between px-2 py-1">
+            <span className="keterangan font-extrabold" style={{ color: "var(--beludru)" }}>Menu admin</span>
+            <button type="button" className="btn btn-kertas px-3 py-1.5 text-xs lg:hidden" onClick={() => setSidebarOpen(false)}>Tutup</button>
+          </div>
+          <nav aria-label="Bab buku admin" className="mt-4 flex flex-col gap-1">
+            {TAB.map(([t, label, kunci]) => {
+              const nilai = kunci === "9" ? "9" : kunci ? hitung[kunci] : null;
+              return (
+                <Link key={t} className="tab-buku" aria-current={t === aktif ? "page" : undefined} to={t === "dasbor" ? "/admin" : `/admin/${t}`} onClick={() => setSidebarOpen(false)}>
+                  {label}
+                  {nilai ? <span className="hitung angka">{nilai}</span> : null}
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+        <main className="min-w-0">
+          {aktif === "dasbor" && <Dasbor />}
+          {aktif === "jadwal" && <Jadwal />}
+          {aktif === "sesi" && <Sesi />}
+          {aktif === "anggota" && <Anggota />}
+          {aktif === "rekap" && <Rekap />}
+          {aktif === "izin" && <Izin />}
+          {aktif === "aturan" && <Aturan />}
+          {aktif === "acara" && <Acara />}
+          {aktif === "laporan" && <Laporan />}
+          {aktif === "notifikasi" && <Notifikasi />}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+/* ——— Dasbor: pandangan dirigen ——— */
+function Dasbor() {
+  const { sesi, absensiSesi, pengajuan, jadwal, daftarAnggota } = pakaiToko();
+  const terpindai = useMemo(
+    () => (sesi ? new Set(absensiSesi(sesi.token).map((r) => r.anggotaId)) : new Set()),
+    [absensiSesi, sesi]
+  );
+  const perSuara = useMemo(() => {
+    const p = { Sopran: [], Alto: [], Tenor: [], Bas: [] };
+    daftarAnggota.forEach((a) => (p[a.suara] ?? (p[a.suara] = [])).push({ ...a, diRuangan: terpindai.has(a.id) }));
+    return p;
+  }, [terpindai, daftarAnggota]);
+  const totalRuangan = Object.values(perSuara).flat().filter((a) => a.diRuangan).length;
+  const menunggu = pengajuan.filter((p) => p.status === "Menunggu").length;
+  const rentan = daftarAnggota.filter((a) => a.alpa >= 2).length;
+  const terdekat = jadwal[0];
+  return (
+    <div className="muncul">
+      <KepalaBab
+        atas={sesi ? "Sesi sedang berjalan" : "Belum ada sesi dibuka"}
+        judul="Siapa sudah di ruangan?"
+        Charity={
+          sesi
+            ? `Kode sesi ${sesi.token} dibuka ${sesi.dibukaPada}. Batas tepat waktu ${sesi.batasTepat}, toleransi ${sesi.toleransi} menit. Pindaian di luar radius ${sesi.radius} meter ditolak.`
+            : "Buka sesi pertama dari tab Sesi dan QR, lalu anggota bisa mulai memindai."
+        }
+      />
+      {!sesi && (
+        <div className="toast mb-4" role="status">
+          <p className="font-extrabold">Mulai dari sini: buka sesi absensi.</p>
+          <div className="mt-3"><Link className="btn btn-primer" to="/admin/sesi">Buka sesi</Link></div>
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-[1fr_.9fr]">
+        <div className="lembar-qr p-4">
+          <PetaRadius jarak={42} akurasi={9} />
+          <div className="flex flex-wrap items-center gap-2 px-1 pb-1 pt-3">
+            <Lencana nada="hadir" anak={`${totalRuangan} di dalam`} />
+            <Lencana nada="alpa" anak={`${daftarAnggota.length - totalRuangan} belum terpindai`} />
+          </div>
+        </div>
+        <div className="buku">
+          <div className="baris" style={{ background: "var(--kertas-2)" }}>
+            <span className="font-extrabold">Kehadiran per suara</span>
+            <span className="keterangan ml-auto">{totalRuangan} dari {daftarAnggota.length} terpindai</span>
+          </div>
+          {Object.entries(perSuara).map(([suara, daftar]) => (
+            <div key={suara} className="border-b px-4 py-3 last:border-0" style={{ borderColor: "var(--garis)" }}>
+              <p className="mb-2 flex items-center gap-2 text-sm font-bold">
+                <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 99, background: SUARA[suara]?.warna ?? "var(--garis-tebal)" }} />
+                {suara}
+                <span className="keterangan font-medium">— {SUARA[suara]?.deskripsi ?? ""}</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {daftar.map((a) => (
+                  <span
+                    key={a.id}
+                    title={`${a.nama} — ${a.diRuangan ? "sudah di ruangan" : "belum terpindai"}`}
+                    style={{
+                      padding: "0.25rem 0.6rem", borderRadius: 999, fontSize: 12.5, fontWeight: 700,
+                      background: a.diRuangan ? "var(--daun-latar)" : "#fff",
+                      color: a.diRuangan ? "var(--daun)" : "var(--tinta-lunak)",
+                      border: `1.5px solid ${a.diRuangan ? "transparent" : "var(--garis-tebal)"}`,
+                    }}
+                  >
+                    {a.nama.split(" ")[0]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="buku p-5">
+          <h3 className="font-extrabold">Perlu keputusan malam ini</h3>
+          <p className="keterangan mt-1">{menunggu} pengajuan menunggu. {rentan} anggota sudah dua kali alpa atau lebih — satu absen lagi berarti gugur.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link className="btn btn-primer" to="/admin/izin">Periksa pengajuan</Link>
+            <Link className="btn btn-kertas" to="/admin/anggota">Lihat anggota rentan</Link>
+          </div>
+        </div>
+        <div className="buku p-5">
+          <h3 className="font-extrabold">{terdekat ? "Jadwal terdekat" : "Belum ada jadwal"}</h3>
+          <p className="keterangan mt-1">
+            {terdekat
+              ? `${terdekat.nama} — ${terdekat.tanggal}, ${terdekat.jam} di ${terdekat.lokasi}.`
+              : "Tambah jadwal latihan dari tab Jadwal. Anggota akan langsung melihatnya."}
+          </p>
+          <div className="mt-3"><Link className="btn btn-kertas" to="/admin/jadwal">Kelola jadwal</Link></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ——— Jadwal fleksibel ——— */
+function Jadwal() {
+  const { jadwal, tambahJadwal, hapusJadwal } = pakaiToko();
+  const [nama, setNama] = useState("");
+  const [pesan, setPesan] = useState("");
+  async function tambah(e) {
+    e.preventDefault();
+    if (!nama.trim()) return;
+    const hasil = await tambahJadwal(nama);
+    if (hasil?.gagal) {
+      setPesan(hasil.gagal);
+      return;
+    }
+    setNama("");
+    setPesan("Jadwal tersimpan dan disiarkan ke anggota sebagai notifikasi.");
+  }
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Fleksibel mengikuti keputusan pelatih" judul="Jadwal latihan" Charity="Tambah, ubah jam, pindah lokasi, atur toleransi, atau batalkan. Jadwal baru langsung muncul di dasbor anggota. Perubahan penting tersimpan untuk audit." />
+      <form onSubmit={tambah} className="buku mb-4 flex flex-col gap-2 p-4 sm:flex-row">
+        <label className="flex-1">
+          <span className="cap">Nama kegiatan baru</span>
+          <input className="masukkan" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Misal: Latihan tambahan vokal grup" />
+        </label>
+        <div className="flex items-end"><button className="btn btn-primer" type="submit">Simpan jadwal</button></div>
+      </form>
+      {pesan && <p role="status" className="toast mb-4" style={{ borderColor: "var(--daun)" }}>{pesan}</p>}
+      {jadwal.length === 0 && <p className="keterangan mb-4">Belum ada jadwal. Tambah kegiatan pertama lewat formulir di atas.</p>}
+      <div className="buku">
+        {jadwal.map((j) => (
+          <div key={j.id} className="baris">
+            <span className="pita" style={{ background: j.status === "Sesi terbuka" ? "var(--daun)" : j.status.includes("Wajib") ? "var(--beludru)" : "var(--garis-tebal)" }} aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold leading-tight">{j.nama}</span>
+              <span className="keterangan block">{j.tanggal}, {j.jam} — {j.lokasi}. Toleransi {j.toleransi} menit.</span>
+            </span>
+            <Lencana nada={j.status === "Sesi terbuka" ? "hadir" : j.status.includes("Wajib") ? "lambat" : "netral"} anak={j.status} />
+            <button type="button" className="keterangan font-bold" style={{ color: "var(--bata)" }} onClick={() => hapusJadwal(j.id)} aria-label={`Batalkan ${j.nama}`}>
+              Batalkan
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ——— Sesi + QR ——— */
+function Sesi() {
+  const { sesi, bukaSesi, aturSesi, absensiSesi, aturUlang, daftarAnggota } = pakaiToko();
+  if (!sesi) return <SesiBaru onBuka={bukaSesi} />;
+  const buka = sesi.status === "terbuka";
+  const ditutup = sesi.status === "ditutup";
+  const sudah = absensiSesi(sesi.token);
+  const kandidat = daftarAnggota.filter((a) => !sudah.some((r) => r.anggotaId === a.id));
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Satu anggota, satu pindaian" judul="Sesi dan kode QR" Charity="Kode hanya berlaku saat sesi dibuka — layar pindai anggota mengikutinya otomatis. GPS wajib lolos sebelum waktu diperiksa. Pindaian kedua dari orang yang sama ditolak sebagai duplikat." />
+      <div className="grid gap-4 lg:grid-cols-[.95fr_1.05fr]">
+        <div className="lembar-qr p-5 text-center">
+          {buka ? (
+            <>
+              <QrTiruan token={sesi.token} />
+              <p className="angka mt-3 text-xl font-extrabold" style={{ letterSpacing: "-0.02em" }}>{sesi.token}</p>
+              <p className="keterangan mt-1">Dibuka {sesi.dibukaPada} di {sesi.lokasi}. Disegarkan tiap 60 detik. Jangan bagikan tangkapan layar — pindaian tetap memeriksa akun dan lokasi.</p>
+              <div className="mt-2"><Lencana nada="hadir" anak={`Sesi terbuka — ${sudah.length} sudah terpindai`} /></div>
+              <div className="mt-4 flex justify-center gap-2">
+                <button className="btn btn-kertas" onClick={() => aturSesi("jeda")}>Jeda sesi</button>
+                <button className="btn btn-primer" onClick={() => aturSesi("ditutup")}>Tutup sesi</button>
+              </div>
+            </>
+          ) : ditutup ? (
+            <>
+              <p className="judul-bab text-2xl">Sesi ditutup.</p>
+              <p className="keterangan mt-2">Kode tidak berlaku. Anggota yang memindai sekarang akan menerima penolakan sesi ditutup.</p>
+              <div className="mt-4"><button className="btn btn-primer" onClick={() => aturSesi("terbuka")}>Buka kembali</button></div>
+            </>
+          ) : (
+            <>
+              <p className="judul-bab text-2xl">Sesi dijeda.</p>
+              <p className="keterangan mt-2">Kode tidak berlaku. Anggota yang memindai sekarang akan menerima penolakan token tidak valid.</p>
+              <div className="mt-4"><button className="btn btn-primer" onClick={() => aturSesi("terbuka")}>Buka kembali</button></div>
+            </>
+          )}
+        </div>
+        <div>
+          <div className="buku mb-4">
+            {[
+              ["Token valid, di dalam radius", "Lanjut periksa waktu", "hadir"],
+              ["Jarak di atas 100 meter", "Ditolak", "alpa"],
+              ["GPS tidak tersedia", "Tidak bisa memeriksa lokasi", "lambat"],
+              ["Sudah pernah terpindai", "Ditolak sebagai duplikat", "alpa"],
+            ].map(([kasus, hasil, nada]) => (
+              <div key={kasus} className="baris">
+                <span className="flex-1 text-sm"><b>{kasus}.</b> <span className="keterangan">{hasil}.</span></span>
+                <Lencana nada={nada} anak={hasil.split(" ")[0]} />
+              </div>
+            ))}
+          </div>
+          {ditutup ? (
+            <div className="toast muncul" role="status" style={{ borderColor: "var(--beludru)" }}>
+              <p className="font-extrabold">Sesi ditutup. {kandidat.length} anggota belum terpindai{sudah.length > 0 ? `, ${sudah.length} sudah tercatat` : ""}.</p>
+              <p className="keterangan mt-1">
+                {kandidat.length > 0
+                  ? `Belum terpindai: ${kandidat.slice(0, 5).map((a) => a.nama.split(" ")[0]).join(", ")}${kandidat.length > 5 ? ` dan ${kandidat.length - 5} lainnya` : ""}. `
+                  : "Semua anggota sudah terpindai. "}
+                Mereka tercatat sebagai kandidat tidak hadir — belum menjadi potongan final. Periksa izin dan sakit sebelum menetapkan status akhir.
+              </p>
+              <div className="mt-3 flex gap-2"><Link className="btn btn-primer" to="/admin/izin">Verifikasi sekarang</Link></div>
+            </div>
+          ) : (
+            <p className="keterangan">Menutup sesi akan menandai anggota yang belum terpindai sebagai kandidat tidak hadir, sesuai alur FR-07.</p>
+          )}
+          <button type="button" className="keterangan mt-4 font-bold" style={{ color: "var(--tinta-lunak)" }} onClick={aturUlang}>
+            Kosongkan semua data (atur ulang pengujian)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Formulir sesi pertama: token dibuat otomatis saat dibuka. */
+function SesiBaru({ onBuka }) {
+  const [nama, setNama] = useState("Latihan gabungan");
+  const [lokasi, setLokasi] = useState("Aula lantai 3");
+  const [toleransi, setToleransi] = useState(10);
+  async function kirim(e) {
+    e.preventDefault();
+    if (!nama.trim()) return;
+    await onBuka({ nama, lokasi, toleransi });
+  }
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Langkah pertama pengujian" judul="Buka sesi absensi" Charity="Beri nama kegiatan, lokasi, dan toleransi keterlambatan. Token QR dibuat otomatis dan langsung bisa dipindai anggota." />
+      <form className="buku grid max-w-xl gap-3 p-4" onSubmit={kirim}>
+        <label><span className="cap">Nama kegiatan</span>
+          <input className="masukkan" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Misal: Latihan gabungan" />
+        </label>
+        <label><span className="cap">Lokasi</span>
+          <input className="masukkan" value={lokasi} onChange={(e) => setLokasi(e.target.value)} placeholder="Misal: Aula lantai 3" />
+        </label>
+        <label><span className="cap">Toleransi keterlambatan: {toleransi} menit</span>
+          <input type="range" min="0" max="30" value={toleransi} onChange={(e) => setToleransi(+e.target.value)} className="w-full" />
+        </label>
+        <div><button className="btn btn-primer" type="submit">Buka sesi dan buat kode QR</button></div>
+      </form>
+    </div>
+  );
+}
+
+/* ——— Anggota SATB + CRUD ——— */
+function Anggota() {
+  const { daftarAnggota, daftarAnggotaNonaktif, tambahAnggota, ubahAnggota, hapusAnggota, aktifkanAnggota, supabaseAktif } = pakaiToko();
+  const [cari, setCari] = useState("");
+  const [suara, setSuara] = useState("Semua");
+  const [status, setStatus] = useState("Semua");
+  const [formMode, setFormMode] = useState(null); // null | { mode: "tambah" } | { mode: "ubah", id }
+  const [namaForm, setNamaForm] = useState("");
+  const [nimForm, setNimForm] = useState("");
+  const [suaraForm, setSuaraForm] = useState("Sopran");
+  const [passwordForm, setPasswordForm] = useState("");
+  const [galatForm, setGalatForm] = useState("");
+  const [pesan, setPesan] = useState("");
+  const [kredensialBaru, setKredensialBaru] = useState(null);
+  const [hapusTarget, setHapusTarget] = useState(null);
+
+  const semuaAnggota = useMemo(
+    () => [...daftarAnggota, ...(daftarAnggotaNonaktif ?? [])],
+    [daftarAnggota, daftarAnggotaNonaktif]
+  );
+  const hasil = useMemo(() => {
+    const kunci = cari.trim().toLowerCase();
+    return semuaAnggota.filter(
+      (a) =>
+        (status === "Semua" || (status === "Aktif" ? a.aktif !== false : a.aktif === false)) &&
+        (suara === "Semua" || a.suara === suara) &&
+        (kunci === "" || a.nama.toLowerCase().includes(kunci) || a.nim.includes(kunci))
+    );
+  }, [semuaAnggota, cari, suara, status]);
+
+  function bukaTambah() {
+    setFormMode({ mode: "tambah" });
+    setNamaForm("");
+    setNimForm("");
+    setSuaraForm("Sopran");
+    setPasswordForm("");
+    setGalatForm("");
+    setPesan("");
+    setKredensialBaru(null);
+    setHapusTarget(null);
+  }
+
+  function bukaUbah(a) {
+    setFormMode({ mode: "ubah", id: a.id });
+    setNamaForm(a.nama);
+    setNimForm(a.nim);
+    setSuaraForm(a.suara);
+    setPasswordForm("");
+    setGalatForm("");
+    setPesan("");
+    setKredensialBaru(null);
+    setHapusTarget(null);
+  }
+
+  function tutupForm() {
+    setFormMode(null);
+    setPasswordForm("");
+    setGalatForm("");
+  }
+
+  async function simpanForm(e) {
+    e.preventDefault();
+    if (formMode?.mode === "tambah" && supabaseAktif && passwordForm.length < 8) {
+      setGalatForm("Password awal minimal 8 karakter.");
+      return;
+    }
+    let hasilSimpan;
+    if (formMode?.mode === "ubah") {
+      hasilSimpan = await ubahAnggota(formMode.id, { nama: namaForm, nim: nimForm, suara: suaraForm });
+    } else {
+      hasilSimpan = await tambahAnggota({ nama: namaForm, nim: nimForm, suara: suaraForm, password: passwordForm });
+    }
+    if (hasilSimpan?.gagal) {
+      setGalatForm(hasilSimpan.gagal);
+      return;
+    }
+    if (formMode?.mode === "tambah" && supabaseAktif) {
+      setKredensialBaru({ nim: nimForm.trim(), email: `${nimForm.trim()}@undipa.ac.id`, password: passwordForm });
+    }
+    setFormMode(null);
+    setPasswordForm("");
+    setGalatForm("");
+    setPesan(
+      formMode?.mode === "ubah"
+        ? `Perubahan ${namaForm.trim()} tersimpan.`
+        : `${namaForm.trim()} berhasil ditambahkan dan akunnya siap dipakai login.`
+    );
+  }
+
+  async function jalankanHapus() {
+    if (!hapusTarget) return;
+    const r = await hapusAnggota(hapusTarget.id);
+    if (r?.gagal) {
+      setPesan("");
+      setGalatForm(r.gagal);
+      return;
+    }
+    setPesan(`${hapusTarget.nama} dinonaktifkan dari daftar.`);
+    setHapusTarget(null);
+    if (formMode?.mode === "ubah" && formMode.id === hapusTarget.id) setFormMode(null);
+  }
+
+  async function jalankanAktifkan(anggota) {
+    const r = await aktifkanAnggota(anggota.id);
+    if (r?.gagal) {
+      setPesan("");
+      setGalatForm(r.gagal);
+      return;
+    }
+    setGalatForm("");
+    setPesan(`${anggota.nama} berhasil diaktifkan kembali.`);
+  }
+
+  const gayaPil = (aktif) =>
+    aktif
+      ? { borderColor: "var(--beludru)", color: "var(--beludru)", background: "var(--beludru-latar)", padding: ".45rem 1rem", fontSize: 13.5 }
+      : { padding: ".45rem 1rem", fontSize: 13.5 };
+
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Sopran, alto, tenor, bas" judul="Anggota" Charity="Tiap baris membawa pita warna suaranya. Cari berdasar nama atau NIM, saring berdasar kelompok suara, lalu tambah, ubah, atau hapus dari satu tempat." />
+
+      {/* Bilah alat: baris 1 cari + tambah, baris 2 saring + hitung. Rapi di HP maupun laptop. */}
+      <div className="buku mb-3 p-3">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 md:flex-row">
+            <input
+              className="masukkan flex-1"
+              value={cari}
+              onChange={(e) => setCari(e.target.value)}
+              placeholder="Cari nama atau NIM, misal: Maria / 202201011"
+              aria-label="Cari anggota"
+            />
+            <button type="button" className="btn btn-primer whitespace-nowrap" onClick={bukaTambah}>
+              + Tambah anggota
+            </button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1.15fr_.85fr]">
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Saring suara">
+              <span className="keterangan mr-1 font-bold">Saring:</span>
+              {["Semua", "Sopran", "Alto", "Tenor", "Bas"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSuara(s)}
+                  aria-pressed={suara === s}
+                  className="btn btn-kertas"
+                  style={gayaPil(suara === s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Saring status anggota">
+              <span className="keterangan mr-1 font-bold">Status:</span>
+              {["Semua", "Aktif", "Nonaktif"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatus(s)}
+                  aria-pressed={status === s}
+                  className="btn btn-kertas"
+                  style={gayaPil(status === s)}
+                >
+                  {s}
+                </button>
+              ))}
+              <span className="keterangan angka ml-auto">
+                {hasil.length} dari {semuaAnggota.length} anggota
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {pesan && (
+        <p role="status" className="toast mb-3" style={{ borderColor: "var(--daun)" }}>
+          {pesan}
+        </p>
+      )}
+
+      {kredensialBaru && (
+        <div className="toast mb-3" role="status" style={{ borderColor: "var(--beludru)" }}>
+          <p className="font-extrabold">Kredensial akun baru — simpan sebelum meninggalkan halaman.</p>
+          <p className="keterangan mt-2">Login NIM: <b className="angka" style={{ color: "var(--tinta)" }}>{kredensialBaru.nim}</b></p>
+          <p className="keterangan">Login email: <b style={{ color: "var(--tinta)" }}>{kredensialBaru.email}</b></p>
+          <p className="mt-2 font-extrabold">Password awal: <span className="angka">{kredensialBaru.password}</span></p>
+        </div>
+      )}
+
+      {/* Formulir tambah / ubah */}
+      {formMode && (
+        <form onSubmit={simpanForm} className="buku mb-3 p-4">
+          <h3 className="font-extrabold">{formMode.mode === "ubah" ? "Ubah anggota" : "Tambah anggota baru"}</h3>
+          <p className="keterangan mt-1">
+            {formMode.mode === "ubah"
+              ? "Perubahan NIM langsung berlaku untuk login berikutnya."
+              : supabaseAktif
+                ? "Akun Auth dibuat otomatis. Berikan password awal kepada anggota."
+                : "Anggota baru langsung bisa masuk dengan NIM + kata sandi demo."}
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_.8fr_.7fr_.8fr]">
+            <label>
+              <span className="cap">Nama lengkap</span>
+              <input
+                className="masukkan"
+                value={namaForm}
+                onChange={(e) => setNamaForm(e.target.value)}
+                placeholder="Misal: Maria Lestari"
+                autoFocus
+              />
+            </label>
+            <label>
+              <span className="cap">NIM</span>
+              <input
+                className="masukkan angka"
+                value={nimForm}
+                onChange={(e) => setNimForm(e.target.value)}
+                placeholder="Misal: 202501099"
+                inputMode="numeric"
+              />
+            </label>
+            <label>
+              <span className="cap">Kelompok suara</span>
+              <select className="masukkan" value={suaraForm} onChange={(e) => setSuaraForm(e.target.value)}>
+                {["Sopran", "Alto", "Tenor", "Bas"].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            {formMode.mode === "tambah" && supabaseAktif && (
+              <label>
+                <span className="cap">Password awal</span>
+                <input
+                  className="masukkan"
+                  type="password"
+                  value={passwordForm}
+                  onChange={(e) => setPasswordForm(e.target.value)}
+                  placeholder="Minimal 8 karakter"
+                  autoComplete="new-password"
+                />
+              </label>
+            )}
+          </div>
+          {galatForm && (
+            <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>
+              {galatForm}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="btn btn-primer" type="submit">
+              {formMode.mode === "ubah" ? "Simpan perubahan" : "Simpan anggota"}
+            </button>
+            <button className="btn btn-kertas" type="button" onClick={tutupForm}>
+              Batal
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Konfirmasi hapus */}
+      {hapusTarget && (
+        <div className="toast mb-3" role="alert" style={{ borderColor: "var(--bata)" }}>
+          <p className="font-extrabold">Nonaktifkan {hapusTarget.nama} (NIM {hapusTarget.nim})?</p>
+          <p className="keterangan mt-1">Akunnya tidak bisa masuk lagi sampai diaktifkan kembali. Riwayat pindaian yang sudah tercatat tetap tersimpan.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-primer"
+              style={{ background: "var(--bata)" }}
+              onClick={jalankanHapus}
+            >
+              Ya, nonaktifkan
+            </button>
+            <button type="button" className="btn btn-kertas" onClick={() => setHapusTarget(null)}>
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="buku">
+        {hasil.map((a) => {
+          const lay = nilaiKelayakan(a);
+          const nonaktif = a.aktif === false;
+          return (
+            <div key={a.id} className="baris" style={{ alignItems: "flex-start" }}>
+              <span className="pita" style={{ background: SUARA[a.suara]?.warna ?? "var(--garis-tebal)" }} aria-hidden="true" />
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 40, height: 40, borderRadius: "50%", flex: "none",
+                  background: "var(--kertas-2)", display: "grid", placeItems: "center",
+                  fontWeight: 800, fontSize: 13, color: "var(--tinta)",
+                }}
+              >
+                {a.nama.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-bold leading-tight">{a.nama}</span>
+                <span className="keterangan block truncate">{a.suara}, NIM {a.nim}</span>
+                <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <Lencana nada={nonaktif ? "netral" : lay.nada} anak={nonaktif ? "Nonaktif" : lay.label} />
+                </span>
+                <span className="mt-1.5 flex flex-wrap gap-1.5">
+                  {nonaktif ? (
+                    <button
+                      type="button"
+                      className="btn btn-kertas"
+                      style={{ padding: ".35rem .85rem", fontSize: 13, color: "var(--daun)", borderColor: "#A9CFC0" }}
+                      onClick={() => jalankanAktifkan(a)}
+                      aria-label={`Aktifkan ${a.nama}`}
+                    >
+                      Aktifkan
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-kertas"
+                        style={{ padding: ".35rem .85rem", fontSize: 13 }}
+                        onClick={() => bukaUbah(a)}
+                        aria-label={`Ubah ${a.nama}`}
+                      >
+                        Ubah
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-kertas"
+                        style={{ padding: ".35rem .85rem", fontSize: 13, color: "var(--bata)", borderColor: "#E5B8B7" }}
+                        onClick={() => { setHapusTarget(a); setPesan(""); }}
+                        aria-label={`Hapus ${a.nama}`}
+                      >
+                        Hapus
+                      </button>
+                    </>
+                  )}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+        {hasil.length === 0 && <p className="keterangan p-5">Tidak ada anggota yang cocok. Coba kata kunci lain atau tambah anggota baru.</p>}
+      </div>
+      <p className="keterangan mt-3">Penanda kelayakan diperbarui otomatis dari rekap: 3 kali alpa berarti tidak bisa ikut serta lagi.</p>
+    </div>
+  );
+}
+
+/* ——— Rekap ——— */
+function Rekap() {
+  const { absensi, daftarAnggota } = pakaiToko();
+  const [filter, setFilter] = useState("Semua");
+  /* Gabungkan angka dasar dengan pindaian baru dari toko. */
+  const gabung = useMemo(() => daftarAnggota.map((a) => {
+    const baru = absensi.filter((r) => r.anggotaId === a.id);
+    const tepat = baru.filter((r) => r.status === "tepat").length;
+    const lambat = baru.filter((r) => r.status === "lambat").length;
+    return { ...a, hadir: a.hadir + tepat, lambat: a.lambat + lambat, potongan: a.potongan + lambat * 5000, baru: baru.length };
+  }), [absensi, daftarAnggota]);
+  const tampil = gabung.filter((a) => {
+    if (filter === "Rentan") return a.alpa >= 2 || a.potongan >= 20000;
+    if (filter === "Bersih") return a.alpa === 0 && a.lambat === 0;
+    return true;
+  });
+  function unduh() {
+    const baris = [["Nama", "NIM", "Suara", "Hadir", "Terlambat", "Izin", "Sakit", "Alpa", "Potongan"]];
+    tampil.forEach((a) => baris.push([a.nama, a.nim, a.suara, a.hadir, a.lambat, a.izin, a.sakit, a.alpa, a.potongan]));
+    const csv = baris.map((r) => r.join(";")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const el = document.createElement("a");
+    el.href = url; el.download = "rekap-padus.csv"; el.click();
+    URL.revokeObjectURL(url);
+  }
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Dapat ditelusuri ke tiap pindaian" judul="Rekap kehadiran" Charity="Hadir, terlambat, izin, sakit, dan alpa yang sudah ditetapkan — lengkap dengan potongannya. Pindaian anggota masuk ke sini otomatis." />
+      {absensi.length === 0 && <p className="keterangan mb-3">Belum ada pindaian. Buka sesi, lalu uji pindai sebagai anggota.</p>}
+      <div className="mb-3 flex flex-wrap gap-2">
+        {["Semua", "Rentan", "Bersih"].map((f) => (
+          <button key={f} className="btn btn-kertas" aria-pressed={filter === f} onClick={() => setFilter(f)} style={filter === f ? { borderColor: "var(--beludru)", color: "var(--beludru)" } : {}}>{f}</button>
+        ))}
+        <span className="flex-1" />
+        <button className="btn btn-primer" onClick={unduh}>Unduh rekap</button>
+      </div>
+      <div className="buku overflow-x-auto">
+        <table className="tabel min-w-[720px]">
+          <thead><tr><th>Anggota</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Potongan</th></tr></thead>
+          <tbody>
+              {tampil.map((a) => (
+              <tr key={a.id}>
+                <td><b>{a.nama}</b> <span className="keterangan">({a.suara})</span>{a.baru > 0 && <span className="keterangan"> • baru terpindai</span>}</td>
+                <td className="angka">{a.hadir}</td><td className="angka">{a.lambat}</td>
+                <td className="angka">{a.izin}</td><td className="angka">{a.sakit}</td>
+                <td className="angka" style={a.alpa >= 2 ? { color: "var(--bata)", fontWeight: 800 } : {}}>{a.alpa}</td>
+                <td className="angka">{rupiah(a.potongan)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ——— Izin ——— */
+function Izin() {
+  const { pengajuan, putuskanPengajuan } = pakaiToko();
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Kandidat tidak hadir bukan vonis" judul="Izin dan sakit" Charity="Pengajuan dari anggota masuk ke sini otomatis. Setujui atau tolak sebelum status akhir ditetapkan. Keputusanmu tercatat untuk audit dan diteruskan ke anggota." />
+      <div className="grid gap-3">
+        {pengajuan.map((p) => (
+          <article key={p.id} className="buku p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <b>{p.nama}</b>
+              <Lencana nada="izin" anak={p.jenis} />
+              <Lencana nada={p.status === "Menunggu" ? "lambat" : p.status === "Disetujui" ? "hadir" : "alpa"} anak={p.status} />
+              <span className="keterangan ml-auto">{p.tanggal}</span>
+            </div>
+            <p className="keterangan mt-2">{p.alasan}</p>
+            {p.status === "Menunggu" && (
+              <div className="mt-3 flex gap-2">
+                <button className="btn btn-primer" onClick={() => putuskanPengajuan(p.id, "Disetujui")}>Setujui</button>
+                <button className="btn btn-kertas" onClick={() => putuskanPengajuan(p.id, "Ditolak")}>Tolak</button>
+              </div>
+            )}
+          </article>
+        ))}
+        {pengajuan.length === 0 && <p className="keterangan">Belum ada pengajuan.</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ——— Aturan + kalkulator fee ——— */
+function Aturan() {
+  const [lambat, setLambat] = useState(1);
+  const [alpa, setAlpa] = useState(0);
+  const [gladi, setGladi] = useState(false);
+  const [pengukuhan, setPengukuhan] = useState("tepat");
+  const potongan = lambat * 5000 + alpa * 10000 + (gladi ? 25000 : 0) + (pengukuhan === "lambat" ? 25000 : 0);
+  const gugur = alpa >= 3;
+  const tanpaFee = pengukuhan === "alpa";
+  const fee = tanpaFee || gugur ? 0 : Math.max(250000 - potongan, 0);
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Sembilan aturan dari dokumen padus" judul="Aturan dan fee" Charity="Geser angka di kalkulator untuk melihat cara potongan bekerja sebelum menetapkan evaluasi final." />
+      <div className="buku mb-4">
+        {aturan.map((r) => (
+          <div key={r.kode} className="baris">
+            <span className="angka font-extrabold" style={{ color: "var(--beludru)", minWidth: 72 }}>{r.kode}</span>
+            <span className="flex-1 text-sm">{r.isi}</span>
+            <Lencana nada={r.kode === "RULE-09" ? "izin" : "netral"} anak={r.jenis} />
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="buku p-5">
+          <h3 className="font-extrabold">Kalkulator fee</h3>
+          <div className="mt-3 grid gap-3">
+            <label><span className="cap">Keterlambatan: {lambat} kejadian</span><input type="range" min="0" max="6" value={lambat} onChange={(e) => setLambat(+e.target.value)} className="w-full" /></label>
+            <label><span className="cap">Alpa latihan: {alpa} kejadian</span><input type="range" min="0" max="4" value={alpa} onChange={(e) => setAlpa(+e.target.value)} className="w-full" /></label>
+            <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={gladi} onChange={(e) => setGladi(e.target.checked)} /> Tidak hadir gladi (Rp25.000)</label>
+            <label><span className="cap">Pengukuhan</span>
+              <select className="masukkan" value={pengukuhan} onChange={(e) => setPengukuhan(e.target.value)}>
+                <option value="tepat">Tepat waktu</option>
+                <option value="lambat">Terlambat (Rp25.000)</option>
+                <option value="alpa">Tidak hadir (tanpa fee)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div className="p-5" style={{ background: "var(--tinta)", color: "#fff", borderRadius: "var(--radius-laci)" }}>
+          <p style={{ color: "#C9CAE8" }} className="keterangan font-semibold">Perkiraan fee</p>
+          <p className="display angka text-5xl">{rupiah(fee)}</p>
+          <p className="mt-2 text-sm" style={{ color: "#C9CAE8" }}>Dasar Rp250.000 dikurangi {rupiah(potongan)}.</p>
+          {(gugur || tanpaFee) && (
+            <p role="status" className="mt-3 rounded-xl p-3 text-sm font-bold" style={{ background: "rgba(255,255,255,.12)" }}>
+              {gugur ? "Tiga kali alpa: tidak bisa ikut serta lagi, fee tidak dibayarkan." : "Tidak hadir pengukuhan: tidak mendapat fee sama sekali."}
+            </p>
+          )}
+          {!gugur && !tanpaFee && <p className="mt-3 text-sm">Tetap layak tampil. Fee final ditetapkan admin setelah verifikasi.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ——— Acara ——— */
+function Acara() {
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Gladi dan pengukuhan dicatat terpisah" judul="Acara wisuda" Charity="Satu anggota satu catatan per acara. Status pengukuhan menentukan fee." />
+      <div className="grid gap-4 md:grid-cols-2">
+        <article className="buku p-5">
+          <Lencana nada="lambat" anak="Gladi kotor" />
+          <h3 className="judul-bab mt-2 text-2xl">Sabtu 26 Sep, 09.00</h3>
+          <p className="keterangan mt-1">Gedung serbaguna. Toleransi 5 menit. Tidak hadir berarti potongan Rp25.000.</p>
+          <div className="mt-3 flex gap-2 text-sm"><span className="angka font-extrabold">14 siap</span><span className="keterangan">2 perlu dihubungi</span></div>
+        </article>
+        <article className="p-5" style={{ background: "var(--kuningan-latar)", borderRadius: "var(--radius-laci)", border: "1.5px solid #D9C47A" }}>
+          <Lencana nada="hadir" anak="Pengukuhan" />
+          <h3 className="judul-bab mt-2 text-2xl">Minggu 27 Sep, 08.00</h3>
+          <p className="mt-1 text-sm" style={{ color: "#5C4A12" }}>Tidak tepat waktu berarti potongan Rp25.000. Tidak hadir berarti tanpa fee — tanpa pengecualian.</p>
+        </article>
+      </div>
+    </div>
+  );
+}
+
+/* ——— Laporan ——— */
+function Laporan() {
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Untuk admin dan bendahara" judul="Laporan" Charity="Empat jenis laporan: per latihan, per anggota, penalti, dan fee. Tampil sebagai tabel, diekspor ke Excel atau PDF." />
+      <div className="grid gap-3 md:grid-cols-2">
+        {[
+          ["Per latihan", "Siapa hadir, terlambat, izin, sakit, alpa — per tanggal."],
+          ["Per anggota", "Total tiap status dan persentase kehadiran satu periode."],
+          ["Penalti", "Tiap potongan membawa anggota, aturan, sumber kejadian, dan nominal."],
+          ["Fee", "Kelayakan, fee dasar, penalti, hasil akhir. Siap diverifikasi."],
+        ].map(([judul, isi]) => (
+          <div key={judul} className="buku p-5">
+            <h3 className="font-extrabold">{judul}</h3>
+            <p className="keterangan mt-1">{isi}</p>
+            <div className="mt-3 flex gap-2">
+              <button className="btn btn-kertas" onClick={() => window.print()}>Cetak</button>
+              <Link className="btn btn-hantu" to="/admin/rekap">Lihat data</Link>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ——— Notifikasi ——— */
+function Notifikasi() {
+  const { notifikasi, tandaiDibaca } = pakaiToko();
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Tanpa duplikat per kejadian" judul="Notifikasi" Charity="Jadwal baru, perubahan, pembatalan, pengingat, hasil pindaian, dan status pengajuan — dibagikan dengan dasbor anggota." />
+      <div className="buku">
+        {notifikasi.map((n) => (
+          <button key={n.id} className="baris baris--aksi" onClick={() => tandaiDibaca(n.id)}>
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 99, background: n.belumDibaca ? "var(--beludru)" : "var(--garis-tebal)", flex: "none" }} />
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold leading-tight">{n.judul}</span>
+              <span className="keterangan block">{n.isi}</span>
+            </span>
+            <span className="keterangan whitespace-nowrap">{n.waktu}</span>
+          </button>
+        ))}
+        {notifikasi.length === 0 && <p className="keterangan p-5">Belum ada notifikasi. Setiap kejadian (jadwal, sesi, pindaian, izin) akan muncul di sini.</p>}
+      </div>
+    </div>
+  );
+}

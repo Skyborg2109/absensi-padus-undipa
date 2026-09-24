@@ -1,0 +1,535 @@
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { Lencana, KepalaBab, PetaRadius, BarisAnggota, TombolKeluar } from "../components/ui.jsx";
+import { anggota as anggotaBenih, rupiah, nilaiKelayakan } from "../data/mock.js";
+import { pakaiAuth } from "../lib/auth.jsx";
+import { pakaiToko } from "../lib/toko.jsx";
+
+const TAB = [["dasbor", "Dasbor"], ["pindai", "Pindai"], ["riwayat", "Riwayat"], ["izin", "Izin"], ["notifikasi", "Notifikasi"]];
+
+export default function Anggota() {
+  const { tab = "dasbor" } = useParams();
+  const aktif = TAB.some(([t]) => t === tab) ? tab : "dasbor";
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { pengguna } = pakaiAuth();
+  const { daftarAnggota } = pakaiToko();
+  const daftar = daftarAnggota?.length ? daftarAnggota : anggotaBenih;
+  const saya = daftar.find((a) => a.id === pengguna?.id) ?? daftar.find((a) => a.nim === pengguna?.nim) ?? { nama: pengguna?.nama ?? "Anggota", nim: pengguna?.nim ?? "—", suara: pengguna?.suara ?? "Sopran" };
+  return (
+    <div className="min-h-screen">
+      <header className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 pt-6">
+        <div className="flex items-center gap-3">
+          <button className="btn btn-kertas lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-controls="anggota-sidebar">
+            Menu
+          </button>
+          <Link to="/beranda" className="flex items-center gap-3">
+            <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--daun)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800 }}>M</span>
+            <span className="leading-tight">
+              <span className="block font-extrabold">{saya.nama}</span>
+              <span className="keterangan" style={{ fontSize: 12.5 }}>{saya.suara}, NIM {saya.nim}</span>
+            </span>
+          </Link>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <Link className="btn btn-primer" to="/anggota/pindai">Pindai untuk hadir</Link>
+          <TombolKeluar />
+        </div>
+      </header>
+      <div className="mx-auto grid max-w-6xl gap-6 px-5 pb-20 pt-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        {sidebarOpen && <button type="button" className="fixed inset-0 z-30 bg-[#2a2b52]/30 lg:hidden" aria-label="Tutup menu" onClick={() => setSidebarOpen(false)} />}
+        <aside id="anggota-sidebar" className={`buku fixed inset-y-0 left-0 z-40 w-[min(19rem,86vw)] overflow-y-auto p-3 transition-transform lg:sticky lg:top-4 lg:z-auto lg:inset-y-auto lg:h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="flex items-center justify-between px-2 py-1">
+            <span className="keterangan font-extrabold" style={{ color: "var(--daun)" }}>Menu anggota</span>
+            <button type="button" className="btn btn-kertas px-3 py-1.5 text-xs lg:hidden" onClick={() => setSidebarOpen(false)}>Tutup</button>
+          </div>
+          <nav aria-label="Bab anggota" className="mt-4 flex flex-col gap-1">
+            {TAB.map(([t, label]) => (
+              <Link key={t} className="tab-buku" aria-current={t === aktif ? "page" : undefined} to={t === "dasbor" ? "/anggota" : `/anggota/${t}`} onClick={() => setSidebarOpen(false)}>{label}</Link>
+            ))}
+          </nav>
+        </aside>
+        <main className="min-w-0">
+          {aktif === "dasbor" && <Dasbor saya={saya} />}
+          {aktif === "pindai" && <Pindai />}
+          {aktif === "riwayat" && <Riwayat />}
+          {aktif === "izin" && <IzinSaya />}
+          {aktif === "notifikasi" && <NotifikasiSaya />}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function Dasbor({ saya }) {
+  const { jadwal, sesi, absensi } = pakaiToko();
+  const milikku = absensi.filter((r) => r.anggotaId === saya.id);
+  const tepat = milikku.filter((r) => r.status === "tepat").length;
+  const lambat = milikku.filter((r) => r.status === "lambat").length;
+  const potongan = lambat * 5000;
+  const lay = nilaiKelayakan({ ...saya, hadir: tepat, lambat, potongan });
+  const fee = 250000 - potongan;
+  return (
+    <div className="muncul">
+      <KepalaBab atas={sesi ? "Ada latihan" : "Belum ada sesi"} judul={`Halo, ${saya.nama.split(" ")[0]}.`} Charity={sesi ? `Sesi ${sesi.nama} di ${sesi.lokasi}. Datang sebelum ${sesi.batasTepat} agar tercatat tepat waktu.` : "Admin belum membuka sesi. Jadwal baru akan muncul di bawah saat ditambahkan."} />
+      {!sesi ? (
+        <div className="toast mb-4" role="status">
+          <p className="font-extrabold">Belum ada sesi dibuka.</p>
+          <p className="keterangan mt-1">Minta admin membuka sesi. Kamu tetap bisa mengajukan izin bila berhalangan.</p>
+        </div>
+      ) : sesi.status === "terbuka" ? (
+        <div className="toast mb-4 muncul" role="status" style={{ borderColor: "var(--daun)" }}>
+          <p className="flex flex-wrap items-center gap-2 font-extrabold">
+            <Lencana nada="hadir" anak="Sesi dibuka" />
+            {sesi.nama} — {sesi.lokasi}. Batas tepat {sesi.batasTepat}.
+          </p>
+          <div className="mt-3"><Link className="btn btn-primer" to="/anggota/pindai">Pindai untuk hadir</Link></div>
+        </div>
+      ) : (
+        <div className="toast mb-4" role="status">
+          <p className="flex flex-wrap items-center gap-2 font-extrabold">
+            <Lencana nada="netral" anak={sesi.status === "jeda" ? "Sesi dijeda" : "Sesi ditutup"} />
+            {sesi.status === "jeda" ? "Admin menjeda sesi. Tunggu dibuka kembali." : "Sesi sudah ditutup. Lihat riwayatmu di bawah."}
+          </p>
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-[1fr_.9fr]">
+        <div className="p-5" style={{ background: "var(--tinta)", color: "#fff", borderRadius: "var(--radius-laci)" }}>
+          <p className="keterangan font-semibold" style={{ color: "#C9CAE8" }}>Status tampilmu</p>
+          <p className="judul-bab mt-1 text-3xl">{lay.label}</p>
+          <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>{lay.sebab}. Hadir {tepat} kali, terlambat {lambat} kali.</p>
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "rgba(255,255,255,.2)" }}>
+            <p className="keterangan" style={{ color: "#C9CAE8" }}>Perkiraan fee</p>
+            <p className="display angka text-4xl">{rupiah(fee)}</p>
+            <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>Dasar Rp250.000 dikurangi {rupiah(potongan)}. Final setelah verifikasi admin.</p>
+          </div>
+        </div>
+        <div className="buku">
+          <div className="baris" style={{ background: "var(--kertas-2)" }}><b>Jadwal terdekat</b></div>
+          {jadwal.length === 0 && <p className="keterangan p-4">Belum ada jadwal dari admin.</p>}
+          {jadwal.slice(0, 4).map((j) => (
+            <div key={j.id} className="baris">
+              <span className="flex-1 text-sm"><b>{j.nama}.</b> <span className="keterangan">{j.tanggal}, {j.jam} — {j.lokasi}.</span></span>
+            </div>
+          ))}
+          <div className="p-3"><Link className="btn btn-hantu w-full" to="/anggota/pindai">Pindai untuk hadir malam ini</Link></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Pindai sungguhan: kamera membaca QR sesi + GPS memeriksa radius 100 m.
+   Urutan pemeriksaan: token → lokasi → duplikat → waktu (FR-03/04/05). */
+const TITIK_AULA = { lat: -5.1405, lon: 119.4832 }; // aula kampus Undipa, Jl. Perintis Kemerdekaan KM 9 (data Kemendikdasmen)
+const RADIUS_ABSEN_M = 100; // FR-04, batas keras kebijakan — di luar ini ditolak
+const KAWASAN_KAMPUS_M = 500; // perkiraan area sekitar kampus dari titik aula; bisa disetel admin
+
+function jarakHaversine(lat1, lon1, lat2, lon2) {
+  const keRad = (d) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const a =
+    Math.sin(keRad(lat2 - lat1) / 2) ** 2 +
+    Math.cos(keRad(lat1)) * Math.cos(keRad(lat2)) * Math.sin(keRad(lon2 - lon1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function formatJarak(m) {
+  if (m == null) return "—";
+  if (m >= 1000) return `${(m / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} km`;
+  return `${m} meter`;
+}
+
+/* Zona anggota dari jarak ke aula: dalam ruangan → area kampus → jauh. */
+function zonaLokasi(jarak) {
+  if (jarak == null) return { label: "Lokasi belum diketahui", nada: "netral", saran: "Tunggu GPS menemukan lokasimu." };
+  if (jarak <= RADIUS_ABSEN_M)
+    return { label: "Di dalam ruangan aula", nada: "hadir", saran: "Kamu di dalam radius 100 m — lanjut ke langkah 3." };
+  if (jarak <= KAWASAN_KAMPUS_M)
+    return { label: "Di area kampus", nada: "lambat", saran: "Kamu di sekitar kampus tapi di luar radius aula. Mendekatlah ke aula lantai 3." };
+  return { label: "Jauh dari kampus", nada: "alpa", saran: `Absensi akan ditolak sampai kamu mendekat ke kampus.` };
+}
+
+function pesanKamera(e) {
+  const m = String(e?.message ?? e ?? "");
+  if (/permission|notallowed|denied/i.test(m))
+    return "Izin kamera ditolak. Aktifkan izin kamera di browser lalu nyalakan ulang, atau ketik kode manual di bawah.";
+  if (/notfound|nodevice|devices/i.test(m))
+    return "Tidak ada kamera di perangkat ini. Ketik kode sesi manual di bawah.";
+  if (/secure|https/i.test(m))
+    return "Kamera butuh koneksi aman (HTTPS atau localhost). Buka lewat HTTPS, atau ketik kode manual.";
+  return "Kamera gagal dinyalakan. Periksa izin browser, atau ketik kode manual di bawah.";
+}
+
+/* Jendela kamera: Html5Qrcode me-render video ke div #qr-pembaca. */
+function PemindaiKamera({ aktif, onBerhasil, onGagal }) {
+  const berhasilRef = useRef(onBerhasil);
+  berhasilRef.current = onBerhasil;
+  const gagalRef = useRef(onGagal);
+  gagalRef.current = onGagal;
+
+  useEffect(() => {
+    if (!aktif) return;
+    let pemindai = null;
+    let batal = false;
+    (async () => {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        if (batal) return;
+        pemindai = new Html5Qrcode("qr-pembaca");
+        await pemindai.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (teks) => berhasilRef.current?.(teks),
+          () => {}
+        );
+        if (batal) await pemindai.stop().catch(() => {});
+      } catch (e) {
+        if (!batal) gagalRef.current?.(pesanKamera(e));
+      }
+    })();
+    return () => {
+      batal = true;
+      (async () => {
+        try {
+          if (pemindai) {
+            if (pemindai.isScanning) await pemindai.stop();
+            pemindai.clear();
+          }
+        } catch {}
+      })();
+    };
+  }, [aktif]);
+
+  return <div id="qr-pembaca" aria-label="Jendela kamera pemindai QR" />;
+}
+
+function Pindai() {
+  const { pengguna } = pakaiAuth();
+  const { sesi, sudahAbsen, catatHadir } = pakaiToko();
+  const [kameraAktif, setKameraAktif] = useState(false);
+  const [kameraError, setKameraError] = useState("");
+  const [tokenPindaian, setTokenPindaian] = useState("");
+  const [kodeManual, setKodeManual] = useState("");
+  const [lokasi, setLokasi] = useState(null); // { jarak, akurasi }
+  const [gpsStatus, setGpsStatus] = useState("mati"); // mati|memuat|ok|gagal
+  const [gpsPesan, setGpsPesan] = useState("");
+  const [pakaiUji, setPakaiUji] = useState(false);
+  const [ujiJarak, setUjiJarak] = useState(34);
+  const [hasil, setHasil] = useState(null);
+
+  const sudahPernah = sesi ? sudahAbsen(pengguna?.id, sesi.token) : false;
+  const adaSesi = !!sesi;
+
+  const jarakEfektif = pakaiUji ? ujiJarak : lokasi?.jarak ?? null;
+  const akurasiEfektif = pakaiUji ? 8 : lokasi?.akurasi ?? null;
+
+  function saatBerhasilScan(teks) {
+    const bersih = String(teks ?? "").trim();
+    if (!bersih) return;
+    setTokenPindaian(bersih);
+    setKameraError("");
+    setKameraAktif(false); // hemat baterai setelah kode tertangkap
+  }
+
+  const pantauId = useRef(null);
+
+  function terapkanPosisi(pos) {
+    const { latitude, longitude, accuracy } = pos.coords;
+    setLokasi({
+      jarak: Math.round(jarakHaversine(latitude, longitude, TITIK_AULA.lat, TITIK_AULA.lon)),
+      akurasi: Math.round(accuracy ?? 0),
+    });
+    setGpsStatus("ok");
+    setGpsPesan("");
+  }
+
+  function galatPosisi(err) {
+    setGpsStatus("gagal");
+    if (err.code === err.PERMISSION_DENIED)
+      setGpsPesan("Izin lokasi ditolak. Aktifkan izin lokasi di browser, lalu coba lagi. Tanpa GPS, absensi tidak bisa divalidasi.");
+    else if (err.code === err.POSITION_UNAVAILABLE)
+      setGpsPesan("GPS tidak tersedia. Keluar ke area terbuka, aktifkan GPS, lalu coba lagi.");
+    else if (err.code === err.TIMEOUT)
+      setGpsPesan("GPS kehabisan waktu. Coba lagi — tetap di tempat terbuka agar sinyal terkunci.");
+    else setGpsPesan("Lokasi gagal dibaca. Coba lagi.");
+  }
+
+  function bacaSekali() {
+    if (!("geolocation" in navigator)) {
+      setGpsStatus("gagal");
+      setGpsPesan("Perangkat ini tidak mendukung GPS. Coba perangkat lain.");
+      return;
+    }
+    setGpsStatus("memuat");
+    setGpsPesan("");
+    navigator.geolocation.getCurrentPosition(terapkanPosisi, galatPosisi, {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 5000,
+    });
+  }
+
+  /* Deteksi otomatis: baca lokasi saat halaman dibuka, lalu pantau
+     pergerakan anggota (di dalam ruangan / area kampus / jauh). */
+  useEffect(() => {
+    if (pakaiUji || !adaSesi) return; // mode uji menggantikan GPS; tanpa sesi tak perlu lokasi
+    if (!("geolocation" in navigator)) {
+      setGpsStatus("gagal");
+      setGpsPesan("Perangkat ini tidak mendukung GPS. Coba perangkat lain.");
+      return;
+    }
+    setGpsStatus("memuat");
+    bacaSekali();
+    pantauId.current = navigator.geolocation.watchPosition(terapkanPosisi, galatPosisi, {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 5000,
+    });
+    return () => {
+      if (pantauId.current != null) navigator.geolocation.clearWatch(pantauId.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pakaiUji, adaSesi]);
+
+  function pakaiKodeManual(e) {
+    e.preventDefault();
+    if (kodeManual.trim()) {
+      setTokenPindaian(kodeManual.trim());
+      setKameraError("");
+    }
+  }
+
+  async function catat() {
+    const token = tokenPindaian.trim();
+    if (!sesi)
+      return setHasil({ nada: "lambat", judul: "Belum ada sesi.", isi: "Admin belum membuka sesi. Tunggu sesi dibuka, lalu pindai ulang." });
+    if (sesi.status !== "terbuka")
+      return setHasil({ nada: "alpa", judul: sesi.status === "jeda" ? "Sesi sedang dijeda." : "Sesi sudah ditutup.", isi: "Kode tidak berlaku saat ini. Tunggu admin membuka sesi, lalu pindai ulang." });
+    if (!token)
+      return setHasil({ nada: "alpa", judul: "Belum ada kode.", isi: "Arahkan kamera ke kode QR di layar aula dulu, atau ketik kode sesi manual." });
+    if (jarakEfektif == null)
+      return setHasil({ nada: "lambat", judul: "Lokasi belum siap.", isi: "Tunggu GPS menemukan lokasimu — status zona tampil otomatis di atas. Tanpa GPS, absensi tidak bisa divalidasi." });
+    if (token !== sesi.token)
+      return setHasil({ nada: "alpa", judul: "Pindaian ditolak.", isi: "Kode tidak berlaku untuk sesi ini. Minta admin menampilkan kode terbaru di layar aula, lalu pindai ulang." });
+    if (jarakEfektif > RADIUS_ABSEN_M)
+      return setHasil({ nada: "alpa", judul: zonaLokasi(jarakEfektif).label + ".", isi: `Jarakmu ${formatJarak(jarakEfektif)} dari aula, batasnya 100 meter. Mendekatlah ke gedung lalu catat ulang — tidak perlu memindai QR lagi.` });
+    if (sudahPernah)
+      return setHasil({ nada: "alpa", judul: "Sudah tercatat.", isi: "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi." });
+    const kini = new Date();
+    const menit = kini.getHours() * 60 + kini.getMinutes();
+    const jam = kini.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    const terlambat = menit > sesi.batasMenit;
+    const tersimpan = await catatHadir({
+      anggotaId: pengguna?.id,
+      nama: pengguna?.nama,
+      token,
+      jarak: jarakEfektif,
+      akurasi: akurasiEfektif ?? 0,
+      status: terlambat ? "lambat" : "tepat",
+    });
+    if (!tersimpan)
+      return setHasil({ nada: "alpa", judul: "Sudah tercatat.", isi: "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi." });
+    if (terlambat)
+      return setHasil({ nada: "lambat", judul: "Tercatat terlambat.", isi: `Melewati batas ${sesi.batasTepat}. Potongan Rp5.000 berlaku satu kali untuk kejadian ini. Tercatat di rekap admin.` });
+    return setHasil({ nada: "hadir", judul: "Hadir, tepat waktu.", isi: `Hari ini ${jam}, jarak ${formatJarak(jarakEfektif)}. Akurasi ±${akurasiEfektif ?? "?"} meter tersimpan untuk verifikasi dan sudah masuk rekap admin.` });
+  }
+
+  const zona = zonaLokasi(jarakEfektif);
+
+  if (!sesi) {
+    return (
+      <div className="muncul">
+        <KepalaBab atas="Menunggu admin" judul="Pindai kehadiran" Charity="Belum ada sesi dibuka. Minta admin membuka sesi dari tab Sesi dan QR, lalu kembali ke sini." />
+        <div className="toast" role="status">
+          <p className="font-extrabold">Belum ada sesi untuk dipindai.</p>
+          <p className="keterangan mt-1">Halaman ini aktif otomatis setelah admin menekan “Buka sesi dan buat kode QR”.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Lokasi dideteksi otomatis" judul="Pindai kehadiran" Charity={`Sesi: ${sesi.nama}, dibuka ${sesi.dibukaPada} di ${sesi.lokasi}. Lokasimu dibaca otomatis saat halaman dibuka dan diperbarui saat kamu bergerak; kode hanya berlaku saat sesi dibuka.`} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="lembar-qr p-4">
+          <p className="mb-2 text-sm font-extrabold">Langkah 1 — Pindai kode QR</p>
+          {kameraAktif ? (
+            <>
+              <PemindaiKamera aktif={kameraAktif} onBerhasil={saatBerhasilScan} onGagal={(p) => { setKameraError(p); setKameraAktif(false); }} />
+              <p className="keterangan mt-2">Arahkan bingkai ke kode QR di layar aula. Kamera berhenti otomatis setelah kode tertangkap.</p>
+              <button className="btn btn-kertas mt-2 w-full" type="button" onClick={() => setKameraAktif(false)}>Matikan kamera</button>
+            </>
+          ) : (
+            <div className="qr-mati">
+              <p className="font-extrabold">Kamera mati.</p>
+              <p className="keterangan mt-1">Nyalakan kamera saat sudah di depan layar QR aula. Izin kamera diminta browser.</p>
+              <button className="btn btn-primer mt-3 w-full" type="button" onClick={() => { setKameraError(""); setKameraAktif(true); }}>Nyalakan kamera</button>
+            </div>
+          )}
+          {kameraError && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>{kameraError}</p>}
+          <div className="buku mt-3 p-3">
+            <p className="keterangan">Kode terpindai: <b className="angka" style={{ color: "var(--tinta)" }}>{tokenPindaian || "— belum ada —"}</b></p>
+            <form onSubmit={pakaiKodeManual} className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input className="masukkan" value={kodeManual} onChange={(e) => setKodeManual(e.target.value)} placeholder="Ketik kode manual, misal PDU-2109-7K2Q" aria-label="Kode sesi manual" />
+              <button className="btn btn-kertas whitespace-nowrap" type="submit">Gunakan kode</button>
+            </form>
+            <p className="keterangan mt-2">Untuk HP tanpa kamera atau izin ditolak.</p>
+          </div>
+        </div>
+        <div>
+          <div className="lembar-qr p-4">
+            <p className="mb-2 text-sm font-extrabold">Langkah 2 — Lokasimu terdeteksi otomatis</p>
+            <div className="mb-3" role="status" aria-live="polite">
+              <div className="flex flex-wrap items-center gap-2">
+                <Lencana nada={zona.nada} anak={zona.label} />
+                {jarakEfektif != null && !pakaiUji && (
+                  <span className="keterangan angka">±{formatJarak(jarakEfektif)} dari aula</span>
+                )}
+                {gpsStatus === "memuat" && jarakEfektif == null && !pakaiUji && (
+                  <span className="keterangan">Mencari sinyal GPS…</span>
+                )}
+              </div>
+              <p className="keterangan mt-1">{pakaiUji ? "Mode uji aktif — zona mengikuti slider di bawah." : zona.saran}</p>
+            </div>
+            <PetaRadius jarak={jarakEfektif ?? 34} akurasi={akurasiEfektif ?? 8} />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button className="btn btn-kertas" type="button" onClick={bacaSekali} disabled={gpsStatus === "memuat" || pakaiUji}>
+                {gpsStatus === "memuat" ? "Membaca GPS…" : lokasi ? "Perbarui lokasiku" : "Cari lokasiku"}
+              </button>
+              {!pakaiUji && <span className="keterangan">Diperbarui otomatis saat kamu bergerak.</span>}
+            </div>
+            {gpsStatus === "gagal" && gpsPesan && (
+              <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>
+                {gpsPesan}{lokasi && !pakaiUji ? " Menampilkan lokasi terakhir yang diketahui." : ""}
+              </p>
+            )}
+            <label className="mt-3 flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" checked={pakaiUji} onChange={(e) => setPakaiUji(e.target.checked)} />
+              Mode uji (tanpa ke aula)
+            </label>
+            {pakaiUji && (
+              <label className="mt-2 block">
+                <span className="cap">Jarak simulasimu dari aula: {ujiJarak} meter</span>
+                <input type="range" min="5" max="180" value={ujiJarak} onChange={(e) => setUjiJarak(+e.target.value)} className="w-full" />
+              </label>
+            )}
+          </div>
+          <div className="buku mt-3 p-4">
+            <p className="mb-2 text-sm font-extrabold">Langkah 3 — Catat kehadiran</p>
+            {sesi.status !== "terbuka" ? (
+              <div className="toast" role="status">
+                <p className="flex items-center gap-2 font-extrabold">
+                  <Lencana nada="netral" anak={sesi.status === "jeda" ? "Dijeda" : "Ditutup"} />
+                  {sesi.status === "jeda" ? "Sesi dijeda admin — tombol aktif lagi setelah dibuka." : "Sesi sudah ditutup admin."}
+                </p>
+              </div>
+            ) : sudahPernah ? (
+              <div className="toast" role="status" style={{ borderColor: "var(--daun)" }}>
+                <p className="flex items-center gap-2 font-extrabold"><Lencana nada="hadir" anak="Sudah tercatat" />Kehadiranmu sesi ini sudah masuk.</p>
+                <p className="keterangan mt-1">Lihat di Riwayat dan Rekap admin.</p>
+              </div>
+            ) : (
+              <button className="btn btn-primer w-full" type="button" onClick={catat}>Catat kehadiran</button>
+            )}
+            {hasil ? (
+              <div className="toast muncul mt-3" role="status" style={{ borderColor: hasil.nada === "hadir" ? "var(--daun)" : hasil.nada === "lambat" ? "#C9A227" : "var(--bata)" }}>
+                <p className="flex items-center gap-2 font-extrabold"><Lencana nada={hasil.nada} anak={hasil.nada === "hadir" ? "Tepat waktu" : hasil.nada === "lambat" ? "Terlambat" : "Ditolak"} />{hasil.judul}</p>
+                <p className="keterangan mt-2">{hasil.isi}</p>
+              </div>
+            ) : (
+              <p className="keterangan mt-2">Belum ada hasil. Hasil pindaianmu akan muncul di sini dan dikirim sebagai notifikasi.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Riwayat() {
+  const { pengguna } = pakaiAuth();
+  const { absensi, sesi } = pakaiToko();
+  const milikku = absensi.filter((r) => r.anggotaId === pengguna?.id);
+  const baris = milikku.map((r) => [
+    `${sesi?.nama ?? "Sesi"} — ${r.jam}`,
+    `${r.status === "tepat" ? "Tepat waktu" : "Terlambat"}, ${r.jarak} m, akurasi ±${r.akurasi} m`,
+    r.status === "tepat" ? "hadir" : "lambat",
+    r.status === "tepat" ? "Tepat waktu" : "Terlambat",
+  ]);
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Dari pindaianmu sendiri" judul="Riwayatmu" Charity="Setiap pindaian yang kamu catat muncul di sini — sama dengan yang terlihat di rekap admin." />
+      {baris.length === 0 && <p className="keterangan mb-3">Belum ada riwayat. Pindai sesi aktif untuk mencatat kehadiran pertamamu.</p>}
+      <div className="buku">
+        {baris.map(([nama, rinci, nada, status], i) => (
+          <div key={`${nama}-${i}`} className="baris">
+            <span className="flex-1"><b className="block text-sm">{nama}</b><span className="keterangan">{rinci}</span></span>
+            <Lencana nada={nada} anak={status} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IzinSaya() {
+  const { pengguna } = pakaiAuth();
+  const { pengajuan, kirimPengajuan, daftarAnggota } = pakaiToko();
+  const daftar = daftarAnggota?.length ? daftarAnggota : anggotaBenih;
+  const saya = daftar.find((a) => a.id === pengguna?.id) ?? daftar.find((a) => a.nim === pengguna?.nim) ?? daftar[0];
+  const milikku = pengajuan.filter((p) => p.nama === saya.nama);
+  const [jenis, setJenis] = useState("Izin");
+  const [alasan, setAlasan] = useState("");
+  const [terkirim, setTerkirim] = useState(false);
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Ajukan sebelum sesi ditutup" judul="Izin atau sakit" Charity="Pengajuanmu langsung masuk ke meja admin dan status keputusannya kembali ke sini. Status akhir ditetapkan setelah sesi ditutup." />
+      <form className="buku p-4" onSubmit={async (e) => { e.preventDefault(); if (alasan.trim()) { const hasil = await kirimPengajuan({ nama: saya.nama, suara: saya.suara, jenis, alasan }); if (hasil?.gagal) { setTerkirim(false); return; } setAlasan(""); setTerkirim(true); } }}>
+        <label><span className="cap">Jenis pengajuan</span>
+          <select className="masukkan" value={jenis} onChange={(e) => setJenis(e.target.value)}>
+            <option value="Izin">Izin</option>
+            <option value="Sakit">Sakit</option>
+          </select>
+        </label>
+        <label className="mt-3 block"><span className="cap">Ceritakan keperluanmu</span>
+          <textarea className="masukkan" rows="4" value={alasan} onChange={(e) => setAlasan(e.target.value)} placeholder="Tanggal, keperluan, dan lampiran surat bila ada" />
+        </label>
+        <button className="btn btn-primer mt-3" type="submit">Kirim pengajuan</button>
+      </form>
+      {terkirim && <p role="status" className="toast mt-3" style={{ borderColor: "var(--daun)" }}>Pengajuan terkirim ke admin. Kamu akan menerima kabar saat disetujui atau ditolak.</p>}
+      <div className="buku mt-4">
+        {milikku.map((p) => (
+          <div key={p.id} className="baris">
+            <span className="flex-1 text-sm"><b>{p.tanggal} — {p.jenis}.</b> <span className="keterangan">{p.alasan}</span></span>
+            <Lencana nada={p.status === "Menunggu" ? "lambat" : p.status === "Disetujui" ? "hadir" : "alpa"} anak={p.status} />
+          </div>
+        ))}
+        {milikku.length === 0 && <p className="keterangan p-5">Belum ada pengajuan darimu.</p>}
+      </div>
+    </div>
+  );
+}
+
+function NotifikasiSaya() {
+  const { notifikasi, tandaiDibaca, daftarAnggota } = pakaiToko();
+  const daftar = daftarAnggota?.length ? daftarAnggota : anggotaBenih;
+  const contoh = daftar[9] ?? daftar[0];
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Jadwal, hasil pindaian, status izin" judul="Kabar untukmu" Charity="Sama dengan yang dilihat admin — jadwal baru, sesi dibuka, hasil pindaian, dan keputusan izin. Pesan dibaca ditandai dengan mengetuknya." />
+      {notifikasi.length === 0 && <p className="keterangan mb-3">Belum ada kabar. Notifikasi muncul saat admin membuat jadwal, membuka sesi, atau memutus izinmu.</p>}
+      <div className="buku">
+        {notifikasi.map((n) => (
+          <button key={n.id} className="baris baris--aksi" onClick={() => tandaiDibaca(n.id)}>
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 99, background: n.belumDibaca ? "var(--beludru)" : "var(--garis-tebal)", flex: "none" }} />
+            <span className="flex-1 text-left"><b className="block text-sm">{n.judul}</b><span className="keterangan">{n.isi}</span></span>
+            <span className="keterangan whitespace-nowrap">{n.waktu}</span>
+          </button>
+        ))}
+      </div>
+      <p className="keterangan mt-3">Contoh anggota lain: {contoh.nama} ({contoh.suara}) — {nilaiKelayakan(contoh).label.toLowerCase()}.</p>
+      <div className="buku mt-2"><BarisAnggota orang={contoh} kanan={<Lencana nada={nilaiKelayakan(contoh).nada} anak={nilaiKelayakan(contoh).label} />} /></div>
+    </div>
+  );
+}

@@ -1,0 +1,402 @@
+@import "tailwindcss";
+
+/*
+  Sistem visual "Buku Partitur"
+  Satu keluarga huruf: Plus Jakarta Sans (dari Jakarta, untuk kampus Indonesia).
+  Latar kertas dingin, bukan krem hangat. Aksi primer beludru jubah padus.
+  Pembatas antar bagian memakai garis tunggal yang tenang.
+*/
+
+:root {
+  --kertas: #f5f6fd;
+  --kertas-2: #eceef9;
+  --kartu: #ffffff;
+  --tinta: #2a2b52;
+  --tinta-lunak: #5b5c86;
+  --tinta-pudar: #8a8bb0;
+  --garis: #d9dbee;
+  --garis-tebal: #c2c5e2;
+  --beludru: #6e2a4e;
+  --beludru-tua: #521e3a;
+  --beludru-latar: #f2e2ea;
+  --kuningan: #8f6f1f;
+  --kuningan-latar: #f4e9c6;
+  --daun: #2c6b5d;
+  --daun-latar: #dbe9e2;
+  --bata: #a83a3a;
+  --bata-latar: #f6dedd;
+  --langit: #3e7fb5;
+  --langit-latar: #dde9f4;
+  --sopran: #c2506e;
+  --alto: #3e7fb5;
+  --tenor: #2e8b72;
+  --bas: #bd7a26;
+  --radius-lembar: 26px;
+  --radius-laci: 16px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  background: var(--kertas);
+  color: var(--tinta);
+  font-size: 15.5px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--beludru);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 3px solid var(--beludru);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ——— Tipe display: satu keluarga, mainkan berat + kemiringan ——— */
+.display {
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.96;
+  text-wrap: balance;
+}
+.display em {
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+}
+.judul-bab {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+.keterangan {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--tinta-lunak);
+}
+.keterangan b,
+.keterangan strong {
+  color: var(--tinta);
+}
+.angka {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ——— Tombol: kata kerja aktif, bentuk pil ——— */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  font-weight: 700;
+  font-size: 14.5px;
+  border-radius: 999px;
+  padding: 0.72rem 1.35rem;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  text-decoration: none;
+  line-height: 1.2;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primer {
+  background: var(--beludru);
+  color: #fff;
+}
+.btn-primer:hover {
+  background: var(--beludru-tua);
+}
+.btn-kertas {
+  background: #fff;
+  border-color: var(--garis-tebal);
+  color: var(--tinta);
+}
+.btn-kertas:hover {
+  border-color: var(--tinta);
+}
+.btn-hantu {
+  background: transparent;
+  color: var(--beludru);
+  border-color: var(--beludru);
+}
+.btn-hantu:hover {
+  background: var(--beludru-latar);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ——— Buku ledger: baris penuh, pita suara di kiri ——— */
+.buku {
+  background: var(--kartu);
+  border: 1.5px solid var(--garis);
+  border-radius: var(--radius-laci);
+  overflow: hidden;
+}
+.baris {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--garis);
+  position: relative;
+  background: #fff;
+  text-align: left;
+  width: 100%;
+}
+.baris:last-child {
+  border-bottom: 0;
+}
+.baris--aksi {
+  cursor: pointer;
+}
+.baris--aksi:hover {
+  background: #fafaff;
+}
+.pita {
+  width: 5px;
+  align-self: stretch;
+  border-radius: 99px;
+  flex: none;
+}
+
+/* ——— Lencana status: kata kerja, bentuk + warna ——— */
+.lencana {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.lencana i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  display: inline-block;
+}
+.lencana--hadir {
+  background: var(--daun-latar);
+  color: var(--daun);
+}
+.lencana--hadir i {
+  border-radius: 50%;
+  background: var(--daun);
+}
+.lencana--lambat {
+  background: var(--kuningan-latar);
+  color: #6d5514;
+}
+.lencana--lambat i {
+  background: #6d5514;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  border-radius: 0;
+}
+.lencana--izin {
+  background: var(--langit-latar);
+  color: #2c5d84;
+}
+.lencana--izin i {
+  background: #2c5d84;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+.lencana--alpa {
+  background: var(--bata-latar);
+  color: var(--bata);
+}
+.lencana--alpa i {
+  background: var(--bata);
+  clip-path: polygon(20% 0, 0 20%, 30% 50%, 0 80%, 20% 100%, 50% 70%, 80% 100%, 100% 80%, 70% 50%, 100% 20%, 80% 0, 50% 30%);
+}
+.lencana--netral {
+  background: var(--kertas-2);
+  color: var(--tinta-lunak);
+}
+.lencana--netral i {
+  border-radius: 50%;
+  border: 2px solid var(--tinta-lunak);
+  background: transparent;
+}
+
+/* ——— Lembar QR: satu-satunya permukaan sangat bulat ——— */
+.lembar-qr {
+  background: #fff;
+  border-radius: var(--radius-lembar);
+  border: 1.5px solid var(--garis);
+}
+
+/* ——— Navigasi tab: kiri, seperti daftar isi buku ——— */
+.tab-buku {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.62rem 0.85rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--tinta-lunak);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  background: transparent;
+}
+.tab-buku:hover {
+  background: #fff;
+  color: var(--tinta);
+}
+.tab-buku[aria-current="page"] {
+  background: #fff;
+  color: var(--tinta);
+  border-color: var(--garis);
+  box-shadow: inset 4px 0 0 var(--beludru);
+}
+.tab-buku .hitung {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--kertas-2);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+}
+.tab-buku[aria-current="page"] .hitung {
+  background: var(--beludru-latar);
+  color: var(--beludru);
+}
+
+/* ——— Masukan ——— */
+.masukkan {
+  width: 100%;
+  border: 1.5px solid var(--garis-tebal);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.65rem 0.9rem;
+  font: inherit;
+  color: var(--tinta);
+}
+.masukkan:focus {
+  outline: 3px solid var(--beludru);
+  outline-offset: 2px;
+  border-color: var(--beludru);
+}
+label.cap {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tinta-lunak);
+  margin-bottom: 0.35rem;
+}
+
+/* ——— Toast hasil pindai ——— */
+.toast {
+  border-radius: var(--radius-laci);
+  border: 1.5px solid var(--garis-tebal);
+  padding: 1rem 1.15rem;
+  background: #fff;
+}
+
+/* ——— Tabel laporan ——— */
+.tabel {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.tabel th {
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--tinta-lunak);
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1.5px solid var(--garis-tebal);
+}
+.tabel td {
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid var(--garis);
+}
+.tabel tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Satu momen gerak saat tindakan pengguna saja */
+@media (prefers-reduced-motion: no-preference) {
+  .muncul {
+    animation: muncul 0.35s ease both;
+  }
+  @keyframes muncul {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .denyut {
+    animation: denyut 1.6s ease-in-out infinite;
+  }
+  @keyframes denyut {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.12);
+      opacity: 0.75;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .muncul,
+  .denyut {
+    animation: none;
+  }
+}
+
+/* Peta radius: lingkaran 100 m */
+.peta-cincin {
+  fill: rgba(110, 42, 78, 0.07);
+  stroke: var(--beludru);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+}
+
+/* Jendela kamera pemindai QR */
+#qr-pembaca {
+  overflow: hidden;
+  border-radius: 18px;
+  background: #101130;
+  min-height: 260px;
+}
+#qr-pembaca video {
+  width: 100% !important;
+  border-radius: 18px;
+  display: block;
+}
+.qr-mati {
+  border: 1.5px dashed var(--garis-tebal);
+  border-radius: 18px;
+  background: var(--kertas-2);
+  padding: 2.2rem 1.5rem;
+  text-align: center;
+}

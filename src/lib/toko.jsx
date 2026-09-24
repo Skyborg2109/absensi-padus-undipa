@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { anggota as anggotaBenih } from "../data/mock.js";
 import { pakaiAuth } from "./auth.jsx";
 import { supabase, supabaseAktif } from "./supabase.js";
@@ -18,6 +18,12 @@ function jamKini() {
 
 function jamMenit(m) {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}.${String(m % 60).padStart(2, "0")}`;
+}
+
+function menitDariWaktu(nilai) {
+  const bagian = String(nilai ?? "").split(/[.:]/).map(Number);
+  if (bagian.length !== 2 || bagian.some((v) => Number.isNaN(v))) return null;
+  return bagian[0] * 60 + bagian[1];
 }
 
 function tokenBaru() {
@@ -176,36 +182,51 @@ export function PenyediaToko({ children }) {
     } catch {}
   }, [toko]);
 
+  const muatData = useCallback(async () => {
+    const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, notifikasiResult] = await Promise.all([
+      supabase.from("profiles").select("id,nama,nim,suara,angkatan,aktif,hadir,lambat,izin,sakit,alpa,potongan").eq("role", "anggota").order("nama"),
+      supabase.from("jadwal").select("*").order("created_at", { ascending: false }),
+      supabase.from("sesi").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("absensi").select("*").order("created_at", { ascending: false }),
+      supabase.from("pengajuan").select("*").order("created_at", { ascending: false }),
+      supabase.from("notifikasi").select("*").order("created_at", { ascending: false }),
+    ]);
+    if (profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || notifikasiResult.error) return;
+    const semuaProfil = (profilResult.data ?? []).map(dariProfil);
+    setToko({
+      daftarAnggota: semuaProfil.filter((a) => a.aktif),
+      daftarAnggotaNonaktif: semuaProfil.filter((a) => !a.aktif),
+      jadwal: (jadwalResult.data ?? []).map(dariJadwal),
+      sesi: dariSesi(sesiResult.data),
+      absensi: (absensiResult.data ?? []).map(dariAbsensi),
+      pengajuan: (pengajuanResult.data ?? []).map(dariPengajuan),
+      notifikasi: (notifikasiResult.data ?? []).map(dariNotifikasi),
+    });
+  }, []);
+
   useEffect(() => {
     if (!supabaseAktif || !pengguna) return;
-    let dibatalkan = false;
-    async function muat() {
-      const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, notifikasiResult] = await Promise.all([
-        supabase.from("profiles").select("id,nama,nim,suara,angkatan,aktif,hadir,lambat,izin,sakit,alpa,potongan").eq("role", "anggota").order("nama"),
-        supabase.from("jadwal").select("*").order("created_at", { ascending: false }),
-        supabase.from("sesi").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("absensi").select("*").order("created_at", { ascending: false }),
-        supabase.from("pengajuan").select("*").order("created_at", { ascending: false }),
-        supabase.from("notifikasi").select("*").order("created_at", { ascending: false }),
-      ]);
-      if (dibatalkan) return;
-      if (profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || notifikasiResult.error) return;
-      const semuaProfil = (profilResult.data ?? []).map(dariProfil);
-      setToko({
-        daftarAnggota: semuaProfil.filter((a) => a.aktif),
-        daftarAnggotaNonaktif: semuaProfil.filter((a) => !a.aktif),
-        jadwal: (jadwalResult.data ?? []).map(dariJadwal),
-        sesi: dariSesi(sesiResult.data),
-        absensi: (absensiResult.data ?? []).map(dariAbsensi),
-        pengajuan: (pengajuanResult.data ?? []).map(dariPengajuan),
-        notifikasi: (notifikasiResult.data ?? []).map(dariNotifikasi),
-      });
-    }
-    void muat();
+    void muatData();
+  }, [pengguna?.userId, pengguna?.id, muatData]);
+
+  useEffect(() => {
+    if (!supabaseAktif || !pengguna) return;
+    const segarkan = () => { void muatData(); };
+    const channel = supabase
+      .channel(`padus-realtime-${pengguna.userId ?? pengguna.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, segarkan)
+      .on("postgres_changes", { event: "*", schema: "public", table: "jadwal" }, segarkan)
+      .on("postgres_changes", { event: "*", schema: "public", table: "sesi" }, segarkan)
+      .on("postgres_changes", { event: "*", schema: "public", table: "absensi" }, segarkan)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pengajuan" }, segarkan)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifikasi" }, segarkan)
+      .subscribe();
+    const pengaman = setInterval(segarkan, 30000);
     return () => {
-      dibatalkan = true;
+      clearInterval(pengaman);
+      void supabase.removeChannel(channel);
     };
-  }, [pengguna?.userId, pengguna?.id]);
+  }, [pengguna?.userId, pengguna?.id, muatData]);
 
   function tambahNotifikasi(judul, isi) {
     const item = { id: idBaru("N"), judul, isi, waktu: jamKini(), belumDibaca: true };
@@ -289,15 +310,18 @@ export function PenyediaToko({ children }) {
     return { ok: true };
   }
 
-  async function bukaSesi({ nama, lokasi, toleransi }) {
+  async function bukaSesi({ jadwalId, nama, lokasi, toleransi, tanggal, mulai, selesai }) {
     const kini = new Date();
-    const mulaiMenit = kini.getHours() * 60 + kini.getMinutes();
+    const mulaiDariJadwal = menitDariWaktu(mulai);
+    const mulaiMenit = mulaiDariJadwal ?? kini.getHours() * 60 + kini.getMinutes();
     const batasMenit = mulaiMenit + (Number(toleransi) || 0);
+    const jamSelesai = selesai || jamMenit(mulaiMenit + 120);
     const item = {
       id: idBaru("S"),
+      jadwalId: jadwalId ?? null,
       nama: nama.trim(),
-      tanggal: kini.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
-      jam: `${jamMenit(mulaiMenit)}–${jamMenit(mulaiMenit + 120)}`,
+      tanggal: tanggal || kini.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+      jam: `${jamMenit(mulaiMenit)}–${jamSelesai}`,
       lokasi: lokasi.trim() || "Aula lantai 3",
       mulaiMenit,
       batasMenit,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Lencana, KepalaBab, PetaRadius, QrSesi, TombolKeluar } from "../components/ui.jsx";
 import { aturan, rupiah, nilaiKelayakan, SUARA } from "../data/mock.js";
@@ -429,30 +429,83 @@ function Sesi() {
   );
 }
 
-/* Formulir sesi pertama: token dibuat otomatis saat dibuka. */
 function SesiBaru({ onBuka }) {
-  const [nama, setNama] = useState("Latihan gabungan");
-  const [lokasi, setLokasi] = useState("Aula lantai 3");
-  const [toleransi, setToleransi] = useState(10);
+  const { jadwal } = pakaiToko();
+  const [terpilih, setTerpilih] = useState("");
+  const [galat, setGalat] = useState("");
+
+  useEffect(() => {
+    if (!terpilih && jadwal.length > 0) setTerpilih(jadwal[0].id);
+  }, [jadwal, terpilih]);
+
+  const sesiJadwal = jadwal.find((j) => j.id === terpilih);
+  const jamJadwal = (sesiJadwal?.jam ?? "19.00–21.00").split(/[–-]/).map((v) => v.trim());
+  const mulai = sesiJadwal?.mulai ?? jamJadwal[0] ?? "19.00";
+  const selesai = sesiJadwal?.selesai ?? jamJadwal[1] ?? "21.00";
+
   async function kirim(e) {
     e.preventDefault();
-    if (!nama.trim()) return;
-    await onBuka({ nama, lokasi, toleransi });
+    if (!sesiJadwal) {
+      setGalat("Pilih jadwal yang ingin dibuka lebih dulu.");
+      return;
+    }
+    const hasil = await onBuka({
+      jadwalId: sesiJadwal.id,
+      nama: sesiJadwal.nama,
+      lokasi: sesiJadwal.lokasi,
+      toleransi: sesiJadwal.toleransi ?? 10,
+      tanggal: formatTanggalJadwal(sesiJadwal.tanggal),
+      mulai,
+      selesai,
+    });
+    if (hasil?.gagal) setGalat(hasil.gagal);
   }
+
+  if (jadwal.length === 0) {
+    return (
+      <div className="muncul">
+        <KepalaBab atas="Belum ada jadwal" judul="Buka sesi absensi" Charity="Sesi harus mengikuti jadwal latihan yang sudah dibuat. Buat jadwal terlebih dahulu, lalu kembali ke tab ini." />
+        <div className="toast" role="status">
+          <p className="font-extrabold">Belum ada jadwal latihan.</p>
+          <p className="keterangan mt-1">Buka tab Jadwal, tambahkan tanggal, jam, dan lokasi, lalu kembali ke Sesi dan QR.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="muncul">
-      <KepalaBab atas="Langkah pertama pengujian" judul="Buka sesi absensi" Charity="Beri nama kegiatan, lokasi, dan toleransi keterlambatan. Token QR dibuat otomatis dan langsung bisa dipindai anggota." />
+      <KepalaBab atas="Pilih jadwal yang sudah disepakati" judul="Buka sesi absensi" Charity="Detail sesi diambil otomatis dari jadwal. Token QR dibuat setelah jadwal dipilih dan tidak dapat diubah dari layar ini." />
       <form className="buku grid max-w-xl gap-3 p-4" onSubmit={kirim}>
-        <label><span className="cap">Nama kegiatan</span>
-          <input className="masukkan" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Misal: Latihan gabungan" />
+        <label>
+          <span className="cap">Jadwal latihan</span>
+          <select className="masukkan" value={terpilih} onChange={(e) => { setTerpilih(e.target.value); setGalat(""); }}>
+            {jadwal.map((j) => <option key={j.id} value={j.id}>{j.nama} — {formatTanggalJadwal(j.tanggal)}</option>)}
+          </select>
         </label>
-        <label><span className="cap">Lokasi</span>
-          <input className="masukkan" value={lokasi} onChange={(e) => setLokasi(e.target.value)} placeholder="Misal: Aula lantai 3" />
+        <label>
+          <span className="cap">Nama kegiatan</span>
+          <input className="masukkan" value={sesiJadwal?.nama ?? ""} readOnly />
         </label>
-        <label><span className="cap">Toleransi keterlambatan: {toleransi} menit</span>
-          <input type="range" min="0" max="30" value={toleransi} onChange={(e) => setToleransi(+e.target.value)} className="w-full" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label>
+            <span className="cap">Tanggal</span>
+            <input className="masukkan" value={formatTanggalJadwal(sesiJadwal?.tanggal)} readOnly />
+          </label>
+          <label>
+            <span className="cap">Jam latihan</span>
+            <input className="masukkan angka" value={`${mulai}–${selesai}`} readOnly />
+          </label>
+        </div>
+        <label>
+          <span className="cap">Lokasi</span>
+          <input className="masukkan" value={sesiJadwal?.lokasi ?? ""} readOnly />
         </label>
-        <div><button className="btn btn-primer" type="submit">Buka sesi dan buat kode QR</button></div>
+        <div className="toast text-sm" style={{ borderColor: "var(--garis-tebal)" }}>
+          Toleransi keterlambatan mengikuti jadwal: <b>{sesiJadwal?.toleransi ?? 10} menit</b>. Batas tepat akan dihitung dari jam mulai.
+        </div>
+        {galat && <p role="alert" className="toast" style={{ borderColor: "var(--bata)", color: "var(--bata)" }}>{galat}</p>}
+        <div><button className="btn btn-primer" type="submit">Buka sesi sesuai jadwal dan buat QR</button></div>
       </form>
     </div>
   );

@@ -229,8 +229,10 @@ function Pindai() {
   const [pakaiUji, setPakaiUji] = useState(false);
   const [ujiJarak, setUjiJarak] = useState(34);
   const [hasil, setHasil] = useState(null);
+  const [popupSukses, setPopupSukses] = useState(null);
   const [menungguLokasi, setMenungguLokasi] = useState(false);
   const tokenTerpakai = useRef("");
+  const hasilRef = useRef(null);
 
   const sudahPernah = sesi ? sudahAbsen(pengguna?.id, sesi.token) : false;
   const adaSesi = !!sesi;
@@ -250,7 +252,7 @@ function Pindai() {
       return;
     }
     setMenungguLokasi(false);
-    void catat(bersih);
+    void prosesToken(bersih);
   }
 
   const pantauId = useRef(null);
@@ -342,15 +344,26 @@ function Pindai() {
     });
     if (!tersimpan)
       return setHasil({ nada: "alpa", judul: "Sudah tercatat.", isi: "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi." });
-    if (terlambat)
-      return setHasil({ nada: "lambat", judul: "Tercatat terlambat.", isi: `Melewati batas ${sesi.batasTepat}. Potongan Rp5.000 berlaku satu kali untuk kejadian ini. Tercatat di rekap admin.` });
-    return setHasil({ nada: "hadir", judul: "Hadir, tepat waktu.", isi: `Hari ini ${jam}, jarak ${formatJarak(jarakEfektif)}. Akurasi ±${akurasiEfektif ?? "?"} meter tersimpan untuk verifikasi dan sudah masuk rekap admin.` });
+    if (terlambat) {
+      setHasil({ nada: "lambat", judul: "Tercatat terlambat.", isi: `Melewati batas ${sesi.batasTepat}. Potongan Rp5.000 berlaku satu kali untuk kejadian ini. Tercatat di rekap admin.` });
+      return { sukses: true, terlambat: true, batas: sesi.batasTepat };
+    }
+    setHasil({ nada: "hadir", judul: "Hadir, tepat waktu.", isi: `Hari ini ${jam}, jarak ${formatJarak(jarakEfektif)}. Akurasi ±${akurasiEfektif ?? "?"} meter tersimpan untuk verifikasi dan sudah masuk rekap admin.` });
+    return { sukses: true, terlambat: false };
+  }
+
+  async function prosesToken(token) {
+    const hasilCatat = await catat(token);
+    if (!hasilCatat?.sukses) return;
+    setKameraAktif(false);
+    setPopupSukses(hasilCatat);
+    requestAnimationFrame(() => hasilRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   }
 
   useEffect(() => {
     if (!menungguLokasi || jarakEfektif == null || !tokenTerpakai.current) return;
     setMenungguLokasi(false);
-    void catat(tokenTerpakai.current);
+    void prosesToken(tokenTerpakai.current);
   }, [jarakEfektif, menungguLokasi]);
 
   const zona = zonaLokasi(jarakEfektif);
@@ -426,7 +439,7 @@ function Pindai() {
               </label>
             )}
           </div>
-          <div className="buku mt-3 p-4">
+          <div className="buku mt-3 p-4" ref={hasilRef}>
             <p className="mb-2 text-sm font-extrabold">Langkah 3 — Hasil kehadiran</p>
             {sesi.status !== "terbuka" ? (
               <div className="toast" role="status">
@@ -452,6 +465,16 @@ function Pindai() {
           </div>
         </div>
       </div>
+      {popupSukses && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#2a2b52]/40 p-4" role="dialog" aria-modal="true" onClick={() => setPopupSukses(null)}>
+          <div className="buku max-w-md p-6 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto w-fit"><Lencana nada={popupSukses.terlambat ? "lambat" : "hadir"} anak={popupSukses.terlambat ? "Terlambat" : "Berhasil"} /></div>
+            <h2 className="judul-bab mt-3 text-2xl">{popupSukses.terlambat ? "Absensi tercatat terlambat" : "Absensi berhasil"}</h2>
+            <p className="keterangan mt-2">{ popupSukses.terlambat ? `Batas kehadiran ${popupSukses.batas}. Potongan Rp5.000 berlaku sesuai aturan.` : "Kehadiranmu sudah tersimpan dan masuk ke rekap admin."}</p>
+            <button className="btn btn-primer mt-5" type="button" onClick={() => setPopupSukses(null)}>Selesai</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

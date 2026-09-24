@@ -17,22 +17,31 @@ export default function Anggota() {
   const saya = daftar.find((a) => a.id === pengguna?.id) ?? daftar.find((a) => a.nim === pengguna?.nim) ?? { nama: pengguna?.nama ?? "Anggota", nim: pengguna?.nim ?? "—", suara: pengguna?.suara ?? "Sopran" };
   return (
     <div className="min-h-screen">
-      <header className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 pt-6">
-        <div className="flex items-center gap-3">
-          <button className="btn btn-kertas lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-controls="anggota-sidebar">
-            Menu
-          </button>
-          <Link to="/beranda" className="flex items-center gap-3">
-            <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--daun)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800 }}>M</span>
-            <span className="leading-tight">
-              <span className="block font-extrabold">{saya.nama}</span>
-              <span className="keterangan" style={{ fontSize: 12.5 }}>{saya.suara}, NIM {saya.nim}</span>
-            </span>
-          </Link>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <Link className="btn btn-primer" to="/anggota/pindai">Pindai untuk hadir</Link>
-          <TombolKeluar />
+      <header className="mx-auto max-w-6xl px-5 pt-5">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--garis-tebal)] bg-white text-[var(--tinta)] lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu" aria-expanded={sidebarOpen} aria-controls="anggota-sidebar">
+              <span className="flex flex-col gap-1" aria-hidden="true">
+                <span className="h-0.5 w-4 rounded-full bg-current" />
+                <span className="h-0.5 w-4 rounded-full bg-current" />
+                <span className="h-0.5 w-4 rounded-full bg-current" />
+              </span>
+            </button>
+            <Link to="/beranda" className="flex min-w-0 items-center gap-2">
+              <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--daun)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, flex: "none" }}>M</span>
+              <span className="min-w-0 leading-tight">
+                <span className="block max-w-[10rem] truncate font-extrabold sm:max-w-none">{saya.nama}</span>
+                <span className="keterangan block max-w-[10rem] truncate sm:max-w-none" style={{ fontSize: 12.5 }}>{saya.suara}, NIM {saya.nim}</span>
+              </span>
+            </Link>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <Link className="btn btn-primer px-3 py-2 text-xs sm:px-5 sm:py-3 sm:text-sm" to="/anggota/pindai">
+              <span className="sm:hidden">Pindai</span>
+              <span className="hidden sm:inline">Pindai untuk hadir</span>
+            </Link>
+            <TombolKeluar />
+          </div>
         </div>
       </header>
       <div className="mx-auto grid max-w-6xl gap-6 px-5 pb-20 pt-6 lg:grid-cols-[220px_minmax(0,1fr)]">

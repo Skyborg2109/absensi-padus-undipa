@@ -30,23 +30,32 @@ export default function Admin() {
   };
   return (
     <div className="min-h-screen">
-      <header className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 pt-6">
-        <div className="flex items-center gap-3">
-          <button className="btn btn-kertas lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-controls="admin-sidebar">
-            Menu
-          </button>
-          <Link to="/beranda" className="flex items-center gap-3" aria-label="Kembali ke halaman depan">
-            <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--beludru)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800 }}>P</span>
-            <span className="leading-tight">
-              <span className="block font-extrabold">Buku admin</span>
-              <span className="keterangan" style={{ fontSize: 12.5 }}>Padus Undipa{sesi ? `, ${sesi.tanggal}` : ""}</span>
-            </span>
-          </Link>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <Link className="btn btn-kertas" to="/anggota">Lihat sebagai anggota</Link>
-          <Link className="btn btn-primer" to="/admin/sesi">Buka sesi</Link>
-          <TombolKeluar />
+      <header className="mx-auto max-w-6xl px-5 pt-5">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--garis-tebal)] bg-white text-[var(--tinta)] lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu" aria-expanded={sidebarOpen} aria-controls="admin-sidebar">
+              <span className="flex flex-col gap-1" aria-hidden="true">
+                <span className="h-0.5 w-4 rounded-full bg-current" />
+                <span className="h-0.5 w-4 rounded-full bg-current" />
+                <span className="h-0.5 w-4 rounded-full bg-current" />
+              </span>
+            </button>
+            <Link to="/beranda" className="flex min-w-0 items-center gap-2" aria-label="Kembali ke halaman depan">
+              <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--beludru)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, flex: "none" }}>P</span>
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate font-extrabold">Buku admin</span>
+                <span className="keterangan block max-w-[10rem] truncate sm:max-w-none" style={{ fontSize: 12.5 }}>Padus Undipa{sesi ? `, ${sesi.tanggal}` : ""}</span>
+              </span>
+            </Link>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <Link className="btn btn-kertas px-3 py-2 text-xs sm:px-5 sm:py-3 sm:text-sm" to="/anggota">
+              <span className="sm:hidden">Anggota</span>
+              <span className="hidden sm:inline">Lihat sebagai anggota</span>
+            </Link>
+            <Link className="btn btn-primer px-3 py-2 text-xs sm:px-5 sm:py-3 sm:text-sm" to="/admin/sesi">Buka sesi</Link>
+            <TombolKeluar />
+          </div>
         </div>
       </header>
 
@@ -182,48 +191,138 @@ function Dasbor() {
   );
 }
 
-/* ——— Jadwal fleksibel ——— */
+function formatTanggalJadwal(nilai) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai ?? "")) return nilai ?? "—";
+  return new Date(`${nilai}T00:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function nilaiAwalJadwal() {
+  return {
+    nama: "",
+    tanggal: new Date().toISOString().slice(0, 10),
+    mulai: "19.00",
+    selesai: "21.00",
+    lokasi: "Aula lantai 3",
+    toleransi: 10,
+    status: "Terjadwal",
+  };
+}
+
 function Jadwal() {
-  const { jadwal, tambahJadwal, hapusJadwal } = pakaiToko();
-  const [nama, setNama] = useState("");
+  const { jadwal, tambahJadwal, ubahJadwal, hapusJadwal } = pakaiToko();
+  const [form, setForm] = useState(nilaiAwalJadwal);
+  const [editId, setEditId] = useState(null);
   const [pesan, setPesan] = useState("");
-  async function tambah(e) {
+  const [galat, setGalat] = useState("");
+
+  function ubahField(field, value) {
+    setForm((t) => ({ ...t, [field]: value }));
+    setGalat("");
+  }
+
+  function resetForm() {
+    setForm(nilaiAwalJadwal());
+    setEditId(null);
+    setGalat("");
+  }
+
+  function mulaiEdit(j) {
+    const bagianJam = (j.jam ?? "19.00–21.00").split(/[–-]/).map((v) => v.trim());
+    setForm({
+      nama: j.nama,
+      tanggal: /^\d{4}-\d{2}-\d{2}$/.test(j.tanggal ?? "") ? j.tanggal : new Date().toISOString().slice(0, 10),
+      mulai: j.mulai ?? bagianJam[0] ?? "19.00",
+      selesai: j.selesai ?? bagianJam[1] ?? bagianJam[0] ?? "21.00",
+      lokasi: j.lokasi,
+      toleransi: j.toleransi ?? 10,
+      status: j.status ?? "Terjadwal",
+    });
+    setEditId(j.id);
+    setPesan("");
+    setGalat("");
+  }
+
+  async function simpan(e) {
     e.preventDefault();
-    if (!nama.trim()) return;
-    const hasil = await tambahJadwal(nama);
+    const sedangEdit = Boolean(editId);
+    const hasil = sedangEdit ? await ubahJadwal(editId, form) : await tambahJadwal(form);
     if (hasil?.gagal) {
-      setPesan(hasil.gagal);
+      setGalat(hasil.gagal);
       return;
     }
-    setNama("");
-    setPesan("Jadwal tersimpan dan disiarkan ke anggota sebagai notifikasi.");
+    const namaJadwal = form.nama.trim();
+    resetForm();
+    setPesan(`${namaJadwal} ${sedangEdit ? "diperbarui" : "tersimpan"} dan langsung disiarkan ke anggota.`);
   }
+
   return (
     <div className="muncul">
-      <KepalaBab atas="Fleksibel mengikuti keputusan pelatih" judul="Jadwal latihan" Charity="Tambah, ubah jam, pindah lokasi, atur toleransi, atau batalkan. Jadwal baru langsung muncul di dasbor anggota. Perubahan penting tersimpan untuk audit." />
-      <form onSubmit={tambah} className="buku mb-4 flex flex-col gap-2 p-4 sm:flex-row">
-        <label className="flex-1">
-          <span className="cap">Nama kegiatan baru</span>
-          <input className="masukkan" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Misal: Latihan tambahan vokal grup" />
-        </label>
-        <div className="flex items-end"><button className="btn btn-primer" type="submit">Simpan jadwal</button></div>
+      <KepalaBab atas="Fleksibel mengikuti keputusan pelatih" judul="Jadwal latihan" Charity="Tambah, ubah jam mulai dan selesai, pindah lokasi, atur toleransi, atau batalkan. Jadwal baru langsung muncul di dasbor anggota." />
+      <form onSubmit={simpan} className="buku mb-4 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-extrabold">{editId ? "Ubah jadwal" : "Tambah jadwal baru"}</h3>
+          {editId && <button type="button" className="btn btn-kertas" onClick={resetForm}>Batal edit</button>}
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <label className="md:col-span-2 lg:col-span-3">
+            <span className="cap">Nama kegiatan</span>
+            <input className="masukkan" value={form.nama} onChange={(e) => ubahField("nama", e.target.value)} placeholder="Misal: Latihan tambahan vokal grup" />
+          </label>
+          <label>
+            <span className="cap">Tanggal</span>
+            <input className="masukkan" type="date" value={form.tanggal} onChange={(e) => ubahField("tanggal", e.target.value)} />
+          </label>
+          <label>
+            <span className="cap">Jam mulai</span>
+            <input className="masukkan" type="time" value={form.mulai} onChange={(e) => ubahField("mulai", e.target.value)} />
+          </label>
+          <label>
+            <span className="cap">Jam selesai</span>
+            <input className="masukkan" type="time" value={form.selesai} onChange={(e) => ubahField("selesai", e.target.value)} />
+          </label>
+          <label>
+            <span className="cap">Lokasi</span>
+            <input className="masukkan" value={form.lokasi} onChange={(e) => ubahField("lokasi", e.target.value)} placeholder="Misal: Aula lantai 3" />
+          </label>
+          <label>
+            <span className="cap">Toleransi keterlambatan: {form.toleransi} menit</span>
+            <input type="range" min="0" max="30" value={form.toleransi} onChange={(e) => ubahField("toleransi", Number(e.target.value))} className="w-full" />
+          </label>
+          <label>
+            <span className="cap">Status</span>
+            <select className="masukkan" value={form.status} onChange={(e) => ubahField("status", e.target.value)}>
+              {["Terjadwal", "Wajib", "Sesi terbuka"].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+        </div>
+        {galat && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)", color: "var(--bata)" }}>{galat}</p>}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button className="btn btn-primer" type="submit">{editId ? "Simpan perubahan" : "Simpan jadwal"}</button>
+          {editId && <button className="btn btn-kertas" type="button" onClick={resetForm}>Batal</button>}
+        </div>
       </form>
       {pesan && <p role="status" className="toast mb-4" style={{ borderColor: "var(--daun)" }}>{pesan}</p>}
       {jadwal.length === 0 && <p className="keterangan mb-4">Belum ada jadwal. Tambah kegiatan pertama lewat formulir di atas.</p>}
       <div className="buku">
-        {jadwal.map((j) => (
-          <div key={j.id} className="baris">
-            <span className="pita" style={{ background: j.status === "Sesi terbuka" ? "var(--daun)" : j.status.includes("Wajib") ? "var(--beludru)" : "var(--garis-tebal)" }} aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-bold leading-tight">{j.nama}</span>
-              <span className="keterangan block">{j.tanggal}, {j.jam} — {j.lokasi}. Toleransi {j.toleransi} menit.</span>
-            </span>
-            <Lencana nada={j.status === "Sesi terbuka" ? "hadir" : j.status.includes("Wajib") ? "lambat" : "netral"} anak={j.status} />
-            <button type="button" className="keterangan font-bold" style={{ color: "var(--bata)" }} onClick={() => hapusJadwal(j.id)} aria-label={`Batalkan ${j.nama}`}>
-              Batalkan
-            </button>
-          </div>
-        ))}
+        {jadwal.map((j) => {
+          const bagianJam = (j.jam ?? "").split(/[–-]/).map((v) => v.trim());
+          const jamMulai = j.mulai ?? bagianJam[0] ?? "—";
+          const jamSelesai = j.selesai ?? bagianJam[1] ?? "—";
+          return (
+            <div key={j.id} className="baris" style={{ alignItems: "flex-start" }}>
+              <span className="pita" style={{ background: j.status === "Sesi terbuka" ? "var(--daun)" : j.status.includes("Wajib") ? "var(--beludru)" : "var(--garis-tebal)" }} aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold leading-tight">{j.nama}</span>
+                <span className="keterangan block">{formatTanggalJadwal(j.tanggal)}, {jamMulai}–{jamSelesai} — {j.lokasi}. Toleransi {j.toleransi} menit.</span>
+              </span>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Lencana nada={j.status === "Sesi terbuka" ? "hadir" : j.status.includes("Wajib") ? "lambat" : "netral"} anak={j.status} />
+                <button type="button" className="btn btn-kertas" style={{ padding: ".35rem .85rem", fontSize: 13 }} onClick={() => mulaiEdit(j)}>Ubah</button>
+                <button type="button" className="keterangan font-bold" style={{ color: "var(--bata)" }} onClick={() => hapusJadwal(j.id)} aria-label={`Batalkan ${j.nama}`}>Batalkan</button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

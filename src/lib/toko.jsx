@@ -82,11 +82,15 @@ function dariProfil(row) {
 }
 
 function dariJadwal(row) {
+  const jam = row.jam ?? "";
+  const bagianJam = jam.split(/[–-]/).map((v) => v.trim());
   return {
     id: row.id,
     nama: row.nama,
     tanggal: row.tanggal,
-    jam: row.jam,
+    jam,
+    mulai: row.mulai ?? bagianJam[0] ?? "19.00",
+    selesai: row.selesai ?? bagianJam[1] ?? bagianJam[0] ?? "21.00",
     lokasi: row.lokasi,
     toleransi: row.toleransi,
     status: row.status,
@@ -211,22 +215,66 @@ export function PenyediaToko({ children }) {
     }
   }
 
-  async function tambahJadwal(nama) {
+  async function tambahJadwal({ nama, tanggal, mulai, selesai, lokasi, toleransi, status = "Terjadwal" }) {
+    const namaBersih = String(nama ?? "").trim();
+    const tanggalBersih = String(tanggal ?? "").trim();
+    const mulaiBersih = String(mulai ?? "").trim();
+    const selesaiBersih = String(selesai ?? "").trim();
+    const lokasiBersih = String(lokasi ?? "").trim();
+    if (!namaBersih || !tanggalBersih || !mulaiBersih || !selesaiBersih || !lokasiBersih) {
+      return { gagal: "Nama, tanggal, jam, dan lokasi wajib diisi." };
+    }
+    if (selesaiBersih <= mulaiBersih) return { gagal: "Jam selesai harus setelah jam mulai." };
     const item = {
       id: idBaru("J"),
-      nama: nama.trim(),
-      tanggal: "Jadwal baru",
-      jam: "19.00–21.00",
-      lokasi: "Aula lantai 3",
-      toleransi: 10,
-      status: "Terjadwal",
+      nama: namaBersih,
+      tanggal: tanggalBersih,
+      jam: `${mulaiBersih}–${selesaiBersih}`,
+      mulai: mulaiBersih,
+      selesai: selesaiBersih,
+      lokasi: lokasiBersih,
+      toleransi: Number(toleransi) || 0,
+      status,
     };
     if (supabaseAktif) {
-      const { error } = await supabase.from("jadwal").insert(item);
+      const { mulai: _mulai, selesai: _selesai, ...dataJadwal } = item;
+      const { error } = await supabase.from("jadwal").insert(dataJadwal);
       if (error) return { gagal: pesanGalat(error, "Jadwal gagal disimpan ke Supabase.") };
     }
     setToko((t) => ({ ...t, jadwal: [item, ...t.jadwal] }));
-    tambahNotifikasi("Jadwal baru: " + item.nama, "Keputusan pelatih. Periksa jam dan lokasimu di dasbor.");
+    tambahNotifikasi("Jadwal baru: " + item.nama, `Keputusan pelatih. ${item.tanggal}, ${item.jam} di ${item.lokasi}.`);
+    return { ok: true };
+  }
+
+  async function ubahJadwal(id, { nama, tanggal, mulai, selesai, lokasi, toleransi, status }) {
+    const target = toko.jadwal.find((j) => j.id === id);
+    if (!target) return { gagal: "Jadwal tidak ditemukan." };
+    const namaBersih = String(nama ?? "").trim();
+    const tanggalBersih = String(tanggal ?? "").trim();
+    const mulaiBersih = String(mulai ?? "").trim();
+    const selesaiBersih = String(selesai ?? "").trim();
+    const lokasiBersih = String(lokasi ?? "").trim();
+    if (!namaBersih || !tanggalBersih || !mulaiBersih || !selesaiBersih || !lokasiBersih) {
+      return { gagal: "Nama, tanggal, jam, dan lokasi wajib diisi." };
+    }
+    if (selesaiBersih <= mulaiBersih) return { gagal: "Jam selesai harus setelah jam mulai." };
+    const item = {
+      nama: namaBersih,
+      tanggal: tanggalBersih,
+      jam: `${mulaiBersih}–${selesaiBersih}`,
+      mulai: mulaiBersih,
+      selesai: selesaiBersih,
+      lokasi: lokasiBersih,
+      toleransi: Number(toleransi) || 0,
+      status: status || "Terjadwal",
+    };
+    if (supabaseAktif) {
+      const { mulai: _mulai, selesai: _selesai, ...dataJadwal } = item;
+      const { error } = await supabase.from("jadwal").update(dataJadwal).eq("id", id);
+      if (error) return { gagal: pesanGalat(error, "Jadwal gagal diperbarui di Supabase.") };
+    }
+    setToko((t) => ({ ...t, jadwal: t.jadwal.map((j) => (j.id === id ? { ...j, ...item } : j)) }));
+    tambahNotifikasi("Jadwal diperbarui: " + item.nama, `${item.tanggal}, ${item.jam} di ${item.lokasi}.`);
     return { ok: true };
   }
 
@@ -468,6 +516,7 @@ export function PenyediaToko({ children }) {
       value={{
         ...toko,
         tambahJadwal,
+        ubahJadwal,
         hapusJadwal,
         bukaSesi,
         aturSesi,

@@ -152,6 +152,30 @@ export function PenyediaAuth({ children }) {
     return { ok: true };
   }
 
+  async function gantiPassword(sandiLama, sandiBaru) {
+    if (String(sandiBaru ?? "").length < 8) return { gagal: "Password baru minimal 8 karakter." };
+    if (sandiLama === sandiBaru) return { gagal: "Password baru harus berbeda dari password lama." };
+    if (supabaseAktif) {
+      if (!pengguna?.nim) return { gagal: "NIM akun tidak ditemukan." };
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: `${pengguna.nim}@undipa.ac.id`,
+        password: sandiLama,
+      });
+      if (loginError) return { gagal: "Password lama salah." };
+      const { error: updateError } = await supabase.auth.updateUser({ password: sandiBaru });
+      if (updateError) return { gagal: updateError.message || "Password baru gagal disimpan." };
+      return { ok: true };
+    }
+
+    const member = daftarAnggotaAktif().find((a) => a.id === pengguna?.id || a.nim === pengguna?.nim);
+    if (!member) return { gagal: "Anggota tidak ditemukan." };
+    const key = `padus-sandi-${member.id}`;
+    const sandiTersimpan = localStorage.getItem(key) || SANDI_DEMO;
+    if (sandiLama !== sandiTersimpan) return { gagal: "Password lama salah." };
+    localStorage.setItem(key, sandiBaru);
+    return { ok: true };
+  }
+
   async function keluar() {
     if (supabaseAktif) await supabase.auth.signOut();
     localStorage.removeItem(KUNCI_SESI);
@@ -159,7 +183,7 @@ export function PenyediaAuth({ children }) {
   }
 
   return (
-    <Konteks.Provider value={{ pengguna, siap, masukAnggota, masukAdmin, keluar, supabaseAktif }}>
+    <Konteks.Provider value={{ pengguna, siap, masukAnggota, masukAdmin, gantiPassword, keluar, supabaseAktif }}>
       {children}
     </Konteks.Provider>
   );

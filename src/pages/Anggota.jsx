@@ -5,7 +5,7 @@ import { anggota as anggotaBenih, rupiah, nilaiKelayakan } from "../data/mock.js
 import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
 
-const TAB = [["dasbor", "Dasbor"], ["pindai", "Pindai"], ["riwayat", "Riwayat"], ["izin", "Izin"], ["notifikasi", "Notifikasi"]];
+const TAB = [["dasbor", "Dasbor"], ["pindai", "Pindai"], ["riwayat", "Riwayat"], ["izin", "Izin"], ["notifikasi", "Notifikasi"], ["profil", "Profil"]];
 
 export default function Anggota() {
   const { tab = "dasbor" } = useParams();
@@ -62,8 +62,9 @@ export default function Anggota() {
           {aktif === "pindai" && <Pindai />}
           {aktif === "riwayat" && <Riwayat />}
           {aktif === "izin" && <IzinSaya />}
-          {aktif === "notifikasi" && <NotifikasiSaya />}
-        </main>
+           {aktif === "notifikasi" && <NotifikasiSaya />}
+           {aktif === "profil" && <ProfilSaya />}
+         </main>
       </div>
     </div>
   );
@@ -475,6 +476,82 @@ function Pindai() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfilSaya() {
+  const { pengguna, gantiPassword } = pakaiAuth();
+  const [sandiLama, setSandiLama] = useState("");
+  const [sandiBaru, setSandiBaru] = useState("");
+  const [ulangiSandi, setUlangiSandi] = useState("");
+  const [pesan, setPesan] = useState("");
+  const [galat, setGalat] = useState("");
+  const [menyimpan, setMenyimpan] = useState(false);
+
+  async function ganti(e) {
+    e.preventDefault();
+    setPesan("");
+    setGalat("");
+    if (sandiBaru !== ulangiSandi) {
+      setGalat("Konfirmasi password belum sama.");
+      return;
+    }
+    setMenyimpan(true);
+    const hasil = await gantiPassword(sandiLama, sandiBaru);
+    setMenyimpan(false);
+    if (hasil?.gagal) {
+      setGalat(hasil.gagal);
+      return;
+    }
+    setSandiLama("");
+    setSandiBaru("");
+    setUlangiSandi("");
+    setPesan("Password berhasil diperbarui.");
+  }
+
+  return (
+    <div className="muncul">
+      <KepalaBab atas="Data akun dan keamanan" judul="Profil saya" Charity="Lihat identitas akun dan ubah password tanpa membuka email." />
+      <div className="grid gap-4 lg:grid-cols-[.8fr_1.2fr]">
+        <section className="buku p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full text-xl font-extrabold text-white" style={{ background: "var(--daun)" }}>
+              {(pengguna?.nama ?? "A").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <h2 className="judul-bab truncate text-2xl">{pengguna?.nama ?? "Anggota"}</h2>
+              <p className="keterangan">Akun anggota padus</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 border-t pt-4">
+            <div><p className="keterangan">NIM</p><p className="font-extrabold">{pengguna?.nim ?? "—"}</p></div>
+            <div><p className="keterangan">Kelompok suara</p><p className="font-extrabold">{pengguna?.suara ?? "—"}</p></div>
+            <div><p className="keterangan">Status akun</p><Lencana nada="hadir" anak="Aktif" /></div>
+          </div>
+        </section>
+        <section className="buku p-5">
+          <h2 className="judul-bab text-2xl">Ganti password</h2>
+          <p className="keterangan mt-1">Gunakan password lama untuk memastikan pemilik akun yang sedang masuk. Password baru minimal 8 karakter.</p>
+          <form className="mt-4 grid gap-3" onSubmit={ganti}>
+            <label>
+              <span className="cap">Password lama</span>
+              <input className="masukkan" type="password" value={sandiLama} onChange={(e) => setSandiLama(e.target.value)} autoComplete="current-password" />
+            </label>
+            <label>
+              <span className="cap">Password baru</span>
+              <input className="masukkan" type="password" value={sandiBaru} onChange={(e) => setSandiBaru(e.target.value)} autoComplete="new-password" />
+            </label>
+            <label>
+              <span className="cap">Ulangi password baru</span>
+              <input className="masukkan" type="password" value={ulangiSandi} onChange={(e) => setUlangiSandi(e.target.value)} autoComplete="new-password" />
+            </label>
+            {galat && <p role="alert" className="toast" style={{ borderColor: "var(--bata)", color: "var(--bata)" }}>{galat}</p>}
+            {pesan && <p role="status" className="toast" style={{ borderColor: "var(--daun)", color: "var(--daun)" }}>{pesan}</p>}
+            <div><button className="btn btn-primer" type="submit" disabled={menyimpan}>{menyimpan ? "Menyimpan…" : "Simpan password baru"}</button></div>
+          </form>
+        </section>
+      </div>
     </div>
   );
 }

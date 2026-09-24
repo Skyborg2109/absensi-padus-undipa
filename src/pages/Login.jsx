@@ -18,7 +18,7 @@ export default function Login() {
   async function masuk(e) {
     e.preventDefault();
     if (!identitas.trim() || !sandi) {
-      setGalat("Isi NIM atau surel kampus dan kata sandi sebelum masuk.");
+      setGalat("Isi NIM atau nama lengkap dan kata sandi sebelum masuk.");
       return;
     }
     const hasil = await masukAnggota(identitas, sandi);
@@ -59,19 +59,19 @@ export default function Login() {
           </p>
           <h1 className="display text-5xl sm:text-6xl">Masuk ke buku hadir.</h1>
           <p className="mt-4 max-w-[52ch] text-[16px]" style={{ color: "var(--tinta-lunak)" }}>
-            Masuk dengan akun kampus untuk memindai kehadiran, melihat riwayat,
+            Masuk dengan NIM atau nama lengkap untuk memindai kehadiran, melihat riwayat,
             dan memantau fee. Halaman ini untuk anggota padus.
           </p>
 
           <form onSubmit={masuk} className="buku mt-6 max-w-xl p-5" noValidate>
             <div className="grid gap-3">
               <label>
-                <span className="cap">NIM atau surel kampus</span>
+                <span className="cap">NIM atau nama lengkap</span>
                 <input
                   className="masukkan"
                   value={identitas}
                   onChange={(e) => setIdentitas(e.target.value)}
-                  placeholder="Misal: 202201011 atau nama@undipa.ac.id"
+                  placeholder="Misal: 202201011 atau Maria Lestari"
                   autoComplete="username"
                 />
               </label>
@@ -83,7 +83,7 @@ export default function Login() {
                     type={tampilSandi ? "text" : "password"}
                     value={sandi}
                     onChange={(e) => setSandi(e.target.value)}
-                    placeholder="Kata sandi akun kampus"
+                    placeholder="Kata sandi akun"
                     autoComplete="current-password"
                     style={{ paddingRight: "4.5rem" }}
                   />
@@ -109,9 +109,8 @@ export default function Login() {
               Masuk
             </button>
             <div className="toast mt-3 text-sm" style={{ borderColor: "var(--garis-tebal)" }}>
-              <b>Akun demo.</b> NIM <span className="angka font-extrabold">202201011</span> dengan
-              sandi <span className="angka font-extrabold">padus2026</span>. Setiap NIM di daftar
-              anggota bisa dipakai dengan sandi yang sama.
+              <b>Akun demo.</b> NIM <span className="angka font-extrabold">202201011</span> atau nama
+              lengkap <b>Maria Lestari</b> dengan sandi <span className="angka font-extrabold">padus2026</span>.
             </div>
             <p className="keterangan mt-2">Lupa kata sandi? Hubungi pelatih untuk mengatur ulang.</p>
           </form>

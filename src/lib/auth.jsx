@@ -7,11 +7,6 @@ const SANDI_DEMO = "padus2026";
 
 const Konteks = createContext(null);
 
-function emailAnggota(identitas) {
-  const bersih = identitas.trim();
-  return bersih.includes("@") ? bersih.toLowerCase() : `${bersih}@undipa.ac.id`;
-}
-
 function daftarAnggotaAktif() {
   try {
     const mentah = localStorage.getItem("padus-toko-v2");
@@ -59,9 +54,17 @@ async function profilUntukSesi(sesi) {
 }
 
 function pesanGalatAuth(message) {
-  if (/invalid login credentials/i.test(message)) return "NIM, surel, atau kata sandi salah.";
+  if (/invalid login credentials/i.test(message)) return "NIM, nama lengkap, atau kata sandi salah.";
   if (/email not confirmed/i.test(message)) return "Akun belum dikonfirmasi. Hubungi admin.";
   return message || "Autentikasi Supabase gagal.";
+}
+
+function pesanFungsiLogin(error, fallback) {
+  const pesan = error?.message || fallback;
+  if (/failed to send a request|fetch failed|network error/i.test(pesan)) {
+    return "Login anggota belum dapat diakses. Deploy Edge Function dengan `supabase functions deploy login-member`, lalu coba lagi.";
+  }
+  return pesan;
 }
 
 export function PenyediaAuth({ children }) {
@@ -90,12 +93,17 @@ export function PenyediaAuth({ children }) {
 
   async function masukAnggota(identitas, sandi) {
     if (supabaseAktif) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: emailAnggota(identitas),
-        password: sandi,
+      const { data, error } = await supabase.functions.invoke("login-member", {
+        body: { identifier: identitas, password: sandi },
       });
-      if (error) return { gagal: pesanGalatAuth(error.message) };
-      const profil = await profilUntukSesi(data.session);
+      if (error) return { gagal: data?.error ?? pesanFungsiLogin(error, "Login anggota gagal.") };
+      if (!data?.session) return { gagal: "Login anggota tidak mengembalikan sesi." };
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+      if (sessionError || !sessionData?.user) return { gagal: "Sesi login tidak dapat disimpan." };
+      const profil = await profilUntukSesi({ user: sessionData.user });
       if (!profil || profil.peran !== "anggota") {
         await supabase.auth.signOut();
         return { gagal: "Akun ini tidak terdaftar sebagai anggota." };
@@ -107,8 +115,8 @@ export function PenyediaAuth({ children }) {
     const bersih = identitas.trim();
     const kunci = bersih.toLowerCase();
     const daftar = daftarAnggotaAktif();
-    const cocok = daftar.find((a) => a.nim === bersih || `${a.nim}@undipa.ac.id` === kunci);
-    if (!cocok) return { gagal: "NIM atau surel tidak terdaftar. Periksa kembali." };
+    const cocok = daftar.find((a) => a.nim === bersih || a.nama.toLowerCase() === kunci);
+    if (!cocok) return { gagal: "NIM atau nama lengkap tidak terdaftar. Periksa kembali." };
     if (sandi !== SANDI_DEMO) return { gagal: "Kata sandi salah. Coba lagi atau hubungi pelatih." };
     const sesi = { peran: "anggota", id: cocok.id, nama: cocok.nama, nim: cocok.nim, suara: cocok.suara };
     localStorage.setItem(KUNCI_SESI, JSON.stringify(sesi));

@@ -59,8 +59,14 @@ function pesanGalatAuth(message) {
   return message || "Autentikasi Supabase gagal.";
 }
 
-function pesanFungsiLogin(error, fallback) {
-  const pesan = error?.message || fallback;
+async function pesanFungsiLogin(error, fallback) {
+  let pesan = error?.message || fallback;
+  if (error?.context?.json) {
+    try {
+      const body = await error.context.json();
+      if (body?.error) pesan = body.error;
+    } catch {}
+  }
   if (/failed to send a request|fetch failed|network error/i.test(pesan)) {
     return "Login anggota belum dapat diakses. Deploy Edge Function dengan `supabase functions deploy login-member`, lalu coba lagi.";
   }
@@ -96,7 +102,7 @@ export function PenyediaAuth({ children }) {
       const { data, error } = await supabase.functions.invoke("login-member", {
         body: { identifier: identitas, password: sandi },
       });
-      if (error) return { gagal: data?.error ?? pesanFungsiLogin(error, "Login anggota gagal.") };
+      if (error) return { gagal: data?.error ?? await pesanFungsiLogin(error, "Login anggota gagal.") };
       if (!data?.session) return { gagal: "Login anggota tidak mengembalikan sesi." };
       const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
         access_token: data.session.access_token,

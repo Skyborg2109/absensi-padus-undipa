@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+function normalisasi(nilai) {
+  return String(nilai ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("id-ID");
+}
+
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -34,25 +38,25 @@ Deno.serve(async (request) => {
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const profilColumns = "id,nama,nim,suara,role,aktif,user_id";
-  let { data: profil } = await adminClient
+  const { data: profilNim } = await adminClient
     .from("profiles")
     .select(profilColumns)
     .eq("nim", identifier)
     .eq("role", "anggota")
     .eq("aktif", true)
     .maybeSingle();
+  let profil = profilNim ?? null;
 
-  if (!profil && !/^[0-9]+$/.test(identifier)) {
-    const escaped = identifier.replace(/[\\%_]/g, "\\$&");
-    const { data: profilNama } = await adminClient
+  if (!profil) {
+    const { data: kandidat } = await adminClient
       .from("profiles")
       .select(profilColumns)
-      .ilike("nama", `^${escaped}$`)
       .eq("role", "anggota")
-      .eq("aktif", true)
-      .limit(2);
-    if ((profilNama?.length ?? 0) > 1) return json({ error: "Nama lengkap tidak unik. Gunakan NIM untuk masuk." }, 409);
-    profil = profilNama?.[0] ?? null;
+      .eq("aktif", true);
+    const target = normalisasi(identifier);
+    const cocok = (kandidat ?? []).filter((item) => normalisasi(item.nama) === target || normalisasi(item.nim) === target);
+    if (cocok.length > 1) return json({ error: "Nama lengkap tidak unik. Gunakan NIM untuk masuk." }, 409);
+    profil = cocok[0] ?? null;
   }
 
   if (!profil) return json({ error: "NIM atau nama lengkap tidak terdaftar." }, 401);

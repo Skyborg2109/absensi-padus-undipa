@@ -108,10 +108,6 @@ export default function Login() {
             <button className="btn btn-primer mt-4 w-full" type="submit">
               Masuk
             </button>
-            <div className="toast mt-3 text-sm" style={{ borderColor: "var(--garis-tebal)" }}>
-              <b>Akun demo.</b> NIM <span className="angka font-extrabold">202201011</span> atau nama
-              lengkap <b>Maria Lestari</b> dengan sandi <span className="angka font-extrabold">padus2026</span>.
-            </div>
             <p className="keterangan mt-2">Lupa kata sandi? Hubungi pelatih untuk mengatur ulang.</p>
           </form>
         </div>

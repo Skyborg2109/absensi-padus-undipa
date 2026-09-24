@@ -95,10 +95,6 @@ export default function LoginAdmin() {
           <button className="btn btn-primer mt-4 w-full" type="submit">
             Masuk sebagai admin
           </button>
-          <div className="toast mt-3 text-sm" style={{ borderColor: "var(--garis-tebal)" }}>
-            <b>Akun demo.</b> Pengguna <span className="font-extrabold">admin</span> dengan
-            sandi <span className="angka font-extrabold">padus2026</span>.
-          </div>
           <p className="keterangan mt-3">
             Bukan admin? <Link className="font-bold" style={{ color: "var(--beludru)" }} to="/">Masuk sebagai anggota</Link>
           </p>

@@ -80,12 +80,15 @@ function Dasbor({ saya }) {
   const tepat = milikku.filter((r) => r.status === "tepat").length;
   const lambatPindaian = milikku.filter((r) => r.status === "lambat").length;
   const koreksi = koreksiRekap.find((item) => item.anggotaId === saya.id);
-  const hadir = koreksi?.hadir ?? (saya.hadir ?? 0) + tepat;
-  const lambat = koreksi?.terlambat ?? (saya.lambat ?? 0) + lambatPindaian;
-  const izin = koreksi?.izin ?? saya.izin ?? 0;
-  const sakit = koreksi?.sakit ?? saya.sakit ?? 0;
-  const alpa = koreksi?.alpa ?? saya.alpa ?? 0;
-  const potongan = koreksi?.potongan ?? (saya.potongan ?? 0) + lambatPindaian * 5000;
+  const waktuPindaian = milikku.reduce((terakhir, r) => Math.max(terakhir, Date.parse(r.dibuatPada ?? "") || 0), 0);
+  const waktuKoreksi = Date.parse(koreksi?.diperbaruiPada ?? "");
+  const koreksiAktif = Boolean(koreksi && (waktuPindaian === 0 || (!Number.isNaN(waktuKoreksi) && waktuKoreksi >= waktuPindaian)));
+  const hadir = koreksiAktif ? koreksi.hadir : (saya.hadir ?? 0) + tepat;
+  const lambat = koreksiAktif ? koreksi.terlambat : (saya.lambat ?? 0) + lambatPindaian;
+  const izin = koreksiAktif ? koreksi.izin : saya.izin ?? 0;
+  const sakit = koreksiAktif ? koreksi.sakit : saya.sakit ?? 0;
+  const alpa = koreksiAktif ? koreksi.alpa : saya.alpa ?? 0;
+  const potongan = koreksiAktif ? koreksi.potongan : (saya.potongan ?? 0) + lambatPindaian * 5000;
   const lay = nilaiKelayakan({ ...saya, hadir, lambat, izin, sakit, alpa, potongan });
   const fee = 250000 - potongan;
   return (

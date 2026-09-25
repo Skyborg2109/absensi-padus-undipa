@@ -149,6 +149,7 @@ function dariAbsensi(row) {
     jarak: row.jarak,
     akurasi: row.akurasi,
     status: row.status,
+    dibuatPada: row.created_at ?? null,
   };
 }
 
@@ -176,6 +177,7 @@ function dariKoreksiRekap(row) {
     alpa: row.alpa ?? 0,
     potongan: row.potongan ?? 0,
     catatan: row.catatan ?? "",
+    diperbaruiPada: row.updated_at ?? row.created_at ?? null,
   };
 }
 
@@ -452,9 +454,10 @@ export function PenyediaToko({ children }) {
     if (toko.koreksiRekap.some((item) => item.anggotaId === anggotaId)) return { gagal: "Koreksi untuk anggota ini sudah ada." };
     const data = dataKoreksiRekap({ hadir, terlambat, izin, sakit, alpa, potongan, catatan });
     if (!data) return { gagal: "Semua angka rekap harus berupa bilangan bulat nol atau lebih." };
-    const item = { id: anggotaId, anggotaId, ...data };
+    const diperbaruiPada = new Date().toISOString();
+    const item = { id: anggotaId, anggotaId, ...data, diperbaruiPada };
     if (supabaseAktif) {
-      const { error } = await supabase.from("rekap_koreksi").insert({ member_id: anggotaId, ...data });
+      const { error } = await supabase.from("rekap_koreksi").insert({ member_id: anggotaId, updated_at: diperbaruiPada, ...data });
       if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal disimpan ke Supabase.") };
     }
     setToko((t) => ({ ...t, koreksiRekap: [...t.koreksiRekap, item] }));
@@ -468,11 +471,12 @@ export function PenyediaToko({ children }) {
     if (!target || !anggota) return { gagal: "Koreksi rekap tidak ditemukan." };
     const data = dataKoreksiRekap({ hadir, terlambat, izin, sakit, alpa, potongan, catatan });
     if (!data) return { gagal: "Semua angka rekap harus berupa bilangan bulat nol atau lebih." };
+    const diperbaruiPada = new Date().toISOString();
     if (supabaseAktif) {
-      const { error } = await supabase.from("rekap_koreksi").update(data).eq("member_id", id);
+      const { error } = await supabase.from("rekap_koreksi").update({ ...data, updated_at: diperbaruiPada }).eq("member_id", id);
       if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal diperbarui di Supabase.") };
     }
-    setToko((t) => ({ ...t, koreksiRekap: t.koreksiRekap.map((item) => (item.id === id ? { ...item, ...data } : item)) }));
+    setToko((t) => ({ ...t, koreksiRekap: t.koreksiRekap.map((item) => (item.id === id ? { ...item, ...data, diperbaruiPada } : item)) }));
     tambahNotifikasi(`Koreksi rekap diperbarui: ${anggota.nama}`, data.catatan || "Rekapfinal diperbarui admin.");
     return { ok: true };
   }
@@ -493,7 +497,7 @@ export function PenyediaToko({ children }) {
   async function catatHadir({ anggotaId, nama, token, jarak, akurasi, status }) {
     if (sudahAbsen(anggotaId, token)) return { ok: false, alasan: "duplikat" };
     const user = pengguna?.userId ? { user_id: pengguna.userId } : {};
-    const rekam = { id: idBaru("H"), anggotaId, nama, token, jam: jamKini(), jarak, akurasi, status };
+    const rekam = { id: idBaru("H"), anggotaId, nama, token, jam: jamKini(), jarak, akurasi, status, dibuatPada: new Date().toISOString() };
     if (supabaseAktif) {
       const { error } = await supabase.from("absensi").insert({
         id: rekam.id,

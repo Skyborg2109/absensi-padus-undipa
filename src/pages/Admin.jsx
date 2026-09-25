@@ -866,6 +866,11 @@ function Anggota() {
 }
 
 /* ——— Rekap ——— */
+function waktuTerakhir(nilai) {
+  const waktu = Date.parse(nilai ?? "");
+  return Number.isNaN(waktu) ? 0 : waktu;
+}
+
 function Rekap() {
   const { absensi, daftarAnggota, koreksiRekap, tambahKoreksiRekap, ubahKoreksiRekap, hapusKoreksiRekap } = pakaiToko();
   const [filter, setFilter] = useState("Semua");
@@ -881,8 +886,11 @@ function Rekap() {
     const tepat = baru.filter((r) => r.status === "tepat").length;
     const lambat = baru.filter((r) => r.status === "lambat").length;
     const koreksi = koreksiRekap.find((item) => item.anggotaId === a.id);
-    if (koreksi) return { ...a, ...koreksi, lambat: koreksi.terlambat, manual: true, baru: baru.length };
-    return { ...a, hadir: a.hadir + tepat, lambat: a.lambat + lambat, potongan: a.potongan + lambat * 5000, manual: false, baru: baru.length };
+    const pindaianTerakhir = baru.reduce((terakhir, r) => Math.max(terakhir, waktuTerakhir(r.dibuatPada)), 0);
+    const koreksiTerakhir = waktuTerakhir(koreksi?.diperbaruiPada);
+    const koreksiTerakhirSekali = Boolean(koreksi && (pindaianTerakhir === 0 || (koreksiTerakhir > 0 && koreksiTerakhir >= pindaianTerakhir)));
+    if (koreksiTerakhirSekali) return { ...a, ...koreksi, lambat: koreksi.terlambat, manual: true, hasKoreksi: true, baru: baru.length };
+    return { ...a, hadir: a.hadir + tepat, lambat: a.lambat + lambat, potongan: a.potongan + lambat * 5000, manual: false, hasKoreksi: Boolean(koreksi), baru: baru.length };
   }), [absensi, daftarAnggota, koreksiRekap]);
 
   const tampil = gabung.filter((a) => {
@@ -984,12 +992,12 @@ function Rekap() {
           <tbody>
             {tampil.map((a) => (
               <tr key={a.id}>
-                <td><b>{a.nama}</b> <span className="keterangan">({a.suara})</span>{a.baru > 0 && <span className="keterangan"> • baru terpindai</span>}{a.manual && <span className="ml-1"><Lencana nada="netral" anak="Koreksi admin" /></span>}</td>
+                <td><b>{a.nama}</b>{a.manual && <span className="ml-1"><Lencana nada="netral" anak="Koreksi admin" /></span>}</td>
                 <td className="angka">{a.hadir}</td><td className="angka">{a.lambat}</td>
                 <td className="angka">{a.izin}</td><td className="angka">{a.sakit}</td>
                 <td className="angka" style={a.alpa >= 2 ? { color: "var(--bata)", fontWeight: 800 } : {}}>{a.alpa}</td>
                 <td className="angka">{rupiah(a.potongan)}</td>
-                <td><div className="flex flex-wrap gap-1.5"><button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5 }} onClick={() => bukaUbah(a)}>{a.manual ? "Ubah" : "Koreksi"}</button>{a.manual && <button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5, color: "var(--bata)", borderColor: "#E5B8B7" }} onClick={() => { setHapusTarget(a); setGalat(""); }}>Hapus</button>}</div></td>
+                <td><div className="flex flex-wrap gap-1.5"><button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5 }} onClick={() => bukaUbah(a)}>{a.hasKoreksi ? "Ubah" : "Koreksi"}</button>{a.hasKoreksi && <button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5, color: "var(--bata)", borderColor: "#E5B8B7" }} onClick={() => { setHapusTarget(a); setGalat(""); }}>Hapus</button>}</div></td>
               </tr>
             ))}
           </tbody>

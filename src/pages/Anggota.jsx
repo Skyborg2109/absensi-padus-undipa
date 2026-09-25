@@ -219,6 +219,43 @@ function PemindaiKamera({ aktif, onBerhasil, onGagal }) {
   return <div id="qr-pembaca" aria-label="Jendela kamera pemindai QR" />;
 }
 
+function PopupPindai({ popup, onTutup }) {
+  const tombolRef = useRef(null);
+  const tutupRef = useRef(onTutup);
+  tutupRef.current = onTutup;
+
+  useEffect(() => {
+    const overflowAwal = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    tombolRef.current?.focus();
+    function tutupDenganEscape(e) {
+      if (e.key === "Escape") tutupRef.current?.();
+    }
+    document.addEventListener("keydown", tutupDenganEscape);
+    return () => {
+      document.body.style.overflow = overflowAwal;
+      document.removeEventListener("keydown", tutupDenganEscape);
+    };
+  }, []);
+
+  const sukses = popup.sukses;
+  const nada = sukses ? (popup.terlambat ? "lambat" : "hadir") : popup.nada;
+  const lencana = sukses ? (popup.terlambat ? "Terlambat" : "Berhasil") : popup.nada === "lambat" ? "Perlu tindakan" : popup.nada === "netral" ? "Informasi" : "Ditolak";
+  const judul = sukses ? (popup.terlambat ? "Absensi tercatat terlambat" : "Absensi berhasil") : popup.judul;
+  const isi = sukses ? (popup.terlambat ? `Batas kehadiran ${popup.batas}. Potongan Rp5.000 berlaku sesuai aturan.` : "Kehadiranmu sudah tersimpan dan masuk ke rekap admin.") : popup.isi;
+
+  return (
+    <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="popup-pindai-judul" onClick={onTutup}>
+      <div className="buku my-auto w-full max-w-md p-6 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto w-fit"><Lencana nada={nada} anak={lencana} /></div>
+        <h2 id="popup-pindai-judul" className="judul-bab mt-3 text-2xl">{judul}</h2>
+        <p className="keterangan mt-2">{isi}</p>
+        <button ref={tombolRef} className="btn btn-primer mt-5" type="button" onClick={onTutup}>Selesai</button>
+      </div>
+    </div>
+  );
+}
+
 function Pindai() {
   const { pengguna } = pakaiAuth();
   const { sesi, sudahAbsen, catatHadir } = pakaiToko();
@@ -230,7 +267,7 @@ function Pindai() {
   const [pakaiUji, setPakaiUji] = useState(false);
   const [ujiJarak, setUjiJarak] = useState(34);
   const [hasil, setHasil] = useState(null);
-  const [popupSukses, setPopupSukses] = useState(null);
+  const [popup, setPopup] = useState(null);
   const [menungguLokasi, setMenungguLokasi] = useState(false);
   const tokenTerpakai = useRef("");
   const hasilRef = useRef(null);
@@ -249,7 +286,9 @@ function Pindai() {
     setHasil({ nada: "netral", judul: "QR berhasil dibaca.", isi: "Memeriksa sesi, lokasi, dan status kehadiran." });
     if (jarakEfektif == null) {
       setMenungguLokasi(true);
-      setHasil({ nada: "lambat", judul: "Menunggu lokasi.", isi: "QR sudah terbaca. Tunggu GPS selesai agar kehadiran dapat divalidasi." });
+      const menunggu = { nada: "lambat", judul: "Menunggu lokasi.", isi: "QR sudah terbaca. Tunggu GPS selesai agar kehadiran dapat divalidasi." };
+      setHasil(menunggu);
+      setPopup(menunggu);
       return;
     }
     setMenungguLokasi(false);
@@ -317,20 +356,25 @@ function Pindai() {
   }, [pakaiUji, adaSesi]);
 
   async function catat(token) {
+    const hasilGagal = (nada, judul, isi) => {
+      const item = { nada, judul, isi };
+      setHasil(item);
+      return item;
+    };
     if (!sesi)
-      return setHasil({ nada: "lambat", judul: "Belum ada sesi.", isi: "Admin belum membuka sesi. Tunggu sesi dibuka, lalu pindai ulang." });
+      return hasilGagal("lambat", "Belum ada sesi.", "Admin belum membuka sesi. Tunggu sesi dibuka, lalu pindai ulang.");
     if (sesi.status !== "terbuka")
-      return setHasil({ nada: "alpa", judul: sesi.status === "jeda" ? "Sesi sedang dijeda." : "Sesi sudah ditutup.", isi: "Kode tidak berlaku saat ini. Tunggu admin membuka sesi, lalu pindai ulang." });
+      return hasilGagal("alpa", sesi.status === "jeda" ? "Sesi sedang dijeda." : "Sesi sudah ditutup.", "Kode tidak berlaku saat ini. Tunggu admin membuka sesi, lalu pindai ulang.");
     if (!token)
-       return setHasil({ nada: "alpa", judul: "QR belum terbaca.", isi: "Arahkan kamera ke QR sesi di layar aula lalu tunggu sampai berhasil." });
+      return hasilGagal("alpa", "QR belum terbaca.", "Arahkan kamera ke QR sesi di layar aula lalu tunggu sampai berhasil.");
     if (jarakEfektif == null)
-      return setHasil({ nada: "lambat", judul: "Lokasi belum siap.", isi: "Tunggu GPS menemukan lokasimu — status zona tampil otomatis di atas. Tanpa GPS, absensi tidak bisa divalidasi." });
+      return hasilGagal("lambat", "Lokasi belum siap.", "Tunggu GPS menemukan lokasimu — status zona tampil otomatis di atas. Tanpa GPS, absensi tidak bisa divalidasi.");
     if (token !== sesi.token)
-      return setHasil({ nada: "alpa", judul: "Pindaian ditolak.", isi: "Kode tidak berlaku untuk sesi ini. Minta admin menampilkan kode terbaru di layar aula, lalu pindai ulang." });
+      return hasilGagal("alpa", "Pindaian ditolak.", "Kode tidak berlaku untuk sesi ini. Minta admin menampilkan kode terbaru di layar aula, lalu pindai ulang.");
     if (jarakEfektif > RADIUS_ABSEN_M)
-      return setHasil({ nada: "alpa", judul: zonaLokasi(jarakEfektif).label + ".", isi: `Jarakmu ${formatJarak(jarakEfektif)} dari aula, batasnya 100 meter. Mendekatlah ke gedung lalu catat ulang — tidak perlu memindai QR lagi.` });
+      return hasilGagal("alpa", zonaLokasi(jarakEfektif).label + ".", `Jarakmu ${formatJarak(jarakEfektif)} dari aula, batasnya 100 meter. Mendekatlah ke gedung lalu catat ulang — tidak perlu memindai QR lagi.`);
     if (sudahPernah)
-      return setHasil({ nada: "alpa", judul: "Sudah tercatat.", isi: "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi." });
+      return hasilGagal("alpa", "Sudah tercatat.", "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi.");
     const kini = new Date();
     const menit = kini.getHours() * 60 + kini.getMinutes();
     const jam = kini.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
@@ -343,22 +387,26 @@ function Pindai() {
       akurasi: akurasiEfektif ?? 0,
       status: terlambat ? "lambat" : "tepat",
     });
-    if (!tersimpan)
-      return setHasil({ nada: "alpa", judul: "Sudah tercatat.", isi: "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi." });
-    if (terlambat) {
-      setHasil({ nada: "lambat", judul: "Tercatat terlambat.", isi: `Melewati batas ${sesi.batasTepat}. Potongan Rp5.000 berlaku satu kali untuk kejadian ini. Tercatat di rekap admin.` });
-      return { sukses: true, terlambat: true, batas: sesi.batasTepat };
+    if (!tersimpan?.ok) {
+      if (tersimpan?.alasan === "duplikat")
+        return hasilGagal("alpa", "Sudah tercatat.", "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi.");
+      return hasilGagal("alpa", "Absensi gagal disimpan.", "Data kehadiran belum berhasil masuk ke server. Periksa koneksi internet lalu coba pindai ulang.");
     }
-    setHasil({ nada: "hadir", judul: "Hadir, tepat waktu.", isi: `Hari ini ${jam}, jarak ${formatJarak(jarakEfektif)}. Akurasi ±${akurasiEfektif ?? "?"} meter tersimpan untuk verifikasi dan sudah masuk rekap admin.` });
-    return { sukses: true, terlambat: false };
+    if (terlambat) {
+      const item = { nada: "lambat", judul: "Tercatat terlambat.", isi: `Melewati batas ${sesi.batasTepat}. Potongan Rp5.000 berlaku satu kali untuk kejadian ini. Tercatat di rekap admin.`, sukses: true, terlambat: true, batas: sesi.batasTepat };
+      setHasil(item);
+      return item;
+    }
+    const item = { nada: "hadir", judul: "Hadir, tepat waktu.", isi: `Hari ini ${jam}, jarak ${formatJarak(jarakEfektif)}. Akurasi ±${akurasiEfektif ?? "?"} meter tersimpan untuk verifikasi dan sudah masuk rekap admin.`, sukses: true, terlambat: false };
+    setHasil(item);
+    return item;
   }
 
   async function prosesToken(token) {
     const hasilCatat = await catat(token);
+    setPopup(hasilCatat);
     if (!hasilCatat?.sukses) return;
     setKameraAktif(false);
-    setPopupSukses(hasilCatat);
-    requestAnimationFrame(() => hasilRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   }
 
   useEffect(() => {
@@ -368,6 +416,11 @@ function Pindai() {
   }, [jarakEfektif, menungguLokasi]);
 
   const zona = zonaLokasi(jarakEfektif);
+
+  function tutupPopup() {
+    setPopup(null);
+    requestAnimationFrame(() => hasilRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
 
   if (!sesi) {
     return (
@@ -466,16 +519,7 @@ function Pindai() {
           </div>
         </div>
       </div>
-      {popupSukses && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#2a2b52]/40 p-4" role="dialog" aria-modal="true" onClick={() => setPopupSukses(null)}>
-          <div className="buku max-w-md p-6 text-center" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto w-fit"><Lencana nada={popupSukses.terlambat ? "lambat" : "hadir"} anak={popupSukses.terlambat ? "Terlambat" : "Berhasil"} /></div>
-            <h2 className="judul-bab mt-3 text-2xl">{popupSukses.terlambat ? "Absensi tercatat terlambat" : "Absensi berhasil"}</h2>
-            <p className="keterangan mt-2">{ popupSukses.terlambat ? `Batas kehadiran ${popupSukses.batas}. Potongan Rp5.000 berlaku sesuai aturan.` : "Kehadiranmu sudah tersimpan dan masuk ke rekap admin."}</p>
-            <button className="btn btn-primer mt-5" type="button" onClick={() => { setPopupSukses(null); requestAnimationFrame(() => hasilRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Selesai</button>
-          </div>
-        </div>
-      )}
+      {popup && <PopupPindai popup={popup} onTutup={tutupPopup} />}
     </div>
   );
 }

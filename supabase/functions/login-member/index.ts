@@ -65,7 +65,7 @@ Deno.serve(async (request) => {
   const { data: userRecord } = profil.user_id
     ? await adminClient.auth.admin.getUserById(profil.user_id)
     : { data: null };
-  const email = userRecord?.user?.email ?? (profil.nim ? `${profil.nim}@undipa.ac.id` : null);
+  const email = userRecord?.user?.email ?? (profil.nim ? `${profil.nim}@undipa.ac.id` : `anggota-${profil.id}@undipa.ac.id`);
   if (!email) return json({ error: "Email internal akun tidak ditemukan." }, 500);
 
   const { data, error } = await authClient.auth.signInWithPassword({

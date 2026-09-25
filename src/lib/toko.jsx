@@ -396,7 +396,7 @@ export function PenyediaToko({ children }) {
   }
 
   async function catatHadir({ anggotaId, nama, token, jarak, akurasi, status }) {
-    if (sudahAbsen(anggotaId, token)) return false;
+    if (sudahAbsen(anggotaId, token)) return { ok: false, alasan: "duplikat" };
     const user = pengguna?.userId ? { user_id: pengguna.userId } : {};
     const rekam = { id: idBaru("H"), anggotaId, nama, token, jam: jamKini(), jarak, akurasi, status };
     if (supabaseAktif) {
@@ -411,14 +411,17 @@ export function PenyediaToko({ children }) {
         akurasi: rekam.akurasi,
         status: rekam.status,
       });
-      if (error) return false;
+      if (error) {
+        const duplikat = error.code === "23505" || /duplicate|unique/i.test(error.message ?? "");
+        return { ok: false, alasan: duplikat ? "duplikat" : "server" };
+      }
     }
     setToko((t) => ({ ...t, absensi: [rekam, ...t.absensi] }));
     tambahNotifikasi(
       status === "tepat" ? `Hasil pindaian ${nama}: tepat waktu` : `Hasil pindaian ${nama}: terlambat`,
       `${rekam.jam}, jarak ${jarak} meter dari aula. Akurasi ±${akurasi} meter.`
     );
-    return true;
+    return { ok: true };
   }
 
   async function kirimPengajuan({ nama, suara, jenis, alasan }) {

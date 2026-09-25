@@ -621,26 +621,53 @@ function ProfilSaya() {
 
 function Riwayat() {
   const { pengguna } = pakaiAuth();
-  const { absensi, sesi } = pakaiToko();
-  const milikku = absensi.filter((r) => r.anggotaId === pengguna?.id);
-  const baris = milikku.map((r) => [
-    `${sesi?.nama ?? "Sesi"} — ${r.jam}`,
-    `${r.status === "tepat" ? "Tepat waktu" : "Terlambat"}, ${r.jarak} m, akurasi ±${r.akurasi} m`,
-    r.status === "tepat" ? "hadir" : "lambat",
-    r.status === "tepat" ? "Tepat waktu" : "Terlambat",
-  ]);
+  const { absensi, sesi, hapusAbsensi } = pakaiToko();
+  const [hapusTarget, setHapusTarget] = useState(null);
+  const [galat, setGalat] = useState("");
+  const milikmu = absensi.filter((r) => r.anggotaId === pengguna?.id);
+  const baris = milikmu.map((r) => ({
+    id: r.id,
+    nama: `${sesi?.nama ?? "Sesi"} — ${r.jam}`,
+    rinci: `${r.status === "tepat" ? "Tepat waktu" : "Terlambat"}, ${r.jarak} m, akurasi ±${r.akurasi} m`,
+    nada: r.status === "tepat" ? "hadir" : "lambat",
+    status: r.status === "tepat" ? "Tepat waktu" : "Terlambat",
+  }));
+
+  async function jalankanHapus() {
+    if (!hapusTarget) return;
+    const hasil = await hapusAbsensi(hapusTarget.id);
+    if (hasil?.gagal) {
+      setGalat(hasil.gagal);
+      return;
+    }
+    setHapusTarget(null);
+    setGalat("");
+  }
+
   return (
     <div className="muncul">
       <KepalaBab atas="Dari pindaianmu sendiri" judul="Riwayatmu" Charity="Setiap pindaian yang kamu catat muncul di sini — sama dengan yang terlihat di rekap admin." />
+      {galat && <p role="alert" className="toast mb-3" style={{ borderColor: "var(--bata)" }}>{galat}</p>}
       {baris.length === 0 && <p className="keterangan mb-3">Belum ada riwayat. Pindai sesi aktif untuk mencatat kehadiran pertamamu.</p>}
       <div className="buku">
-        {baris.map(([nama, rinci, nada, status], i) => (
-          <div key={`${nama}-${i}`} className="baris">
-            <span className="flex-1"><b className="block text-sm">{nama}</b><span className="keterangan">{rinci}</span></span>
-            <Lencana nada={nada} anak={status} />
+        {baris.map((row) => (
+          <div key={row.id} className="baris">
+            <span className="flex-1"><b className="block text-sm">{row.nama}</b><span className="keterangan">{row.rinci}</span></span>
+            <Lencana nada={row.nada} anak={row.status} />
+            <button type="button" className="btn btn-kertas shrink-0" style={{ padding: ".35rem .75rem", fontSize: 12.5, color: "var(--bata)", borderColor: "#E5B8B7" }} onClick={() => { setHapusTarget(row); setGalat(""); }}>Hapus</button>
           </div>
         ))}
       </div>
+      {hapusTarget && (
+        <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="hapus-riwayat-judul" onClick={() => setHapusTarget(null)}>
+          <div className="buku my-auto w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <h2 id="hapus-riwayat-judul" className="judul-bab text-2xl">Hapus riwayat ini?</h2>
+            <p className="keterangan mt-2">Data {hapusTarget.nama} akan dihapus dari riwayat dan rekap. Tindakan ini tidak dapat dibatalkan.</p>
+            {galat && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>{galat}</p>}
+            <div className="mt-5 flex justify-end gap-2"><button className="btn btn-kertas" type="button" onClick={() => setHapusTarget(null)}>Batal</button><button className="btn btn-primer" type="button" onClick={jalankanHapus}>Hapus riwayat</button></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

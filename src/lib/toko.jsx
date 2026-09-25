@@ -223,16 +223,13 @@ export function PenyediaToko({ children }) {
   }, [toko]);
 
   const muatData = useCallback(async () => {
-    const koreksiRekap = pengguna?.peran === "admin"
-      ? supabase.from("rekap_koreksi").select("*")
-      : Promise.resolve({ data: [], error: null });
     const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, koreksiRekapResult, notifikasiResult] = await Promise.all([
       supabase.from("profiles").select("id,nama,nim,suara,angkatan,aktif,hadir,lambat,izin,sakit,alpa,potongan").eq("role", "anggota").order("nama"),
       supabase.from("jadwal").select("*").order("created_at", { ascending: false }),
       supabase.from("sesi").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("absensi").select("*").order("created_at", { ascending: false }),
       supabase.from("pengajuan").select("*").order("created_at", { ascending: false }),
-      koreksiRekap,
+      supabase.from("rekap_koreksi").select("*"),
       supabase.from("notifikasi").select("*").order("created_at", { ascending: false }),
     ]);
     const commonError = profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || notifikasiResult.error;
@@ -254,7 +251,7 @@ export function PenyediaToko({ children }) {
     });
     setGalatData("");
     setSiapData(true);
-  }, [pengguna?.peran]);
+  }, []);
 
   useEffect(() => {
     if (!supabaseAktif || !pengguna) return;
@@ -494,6 +491,17 @@ export function PenyediaToko({ children }) {
     return { ok: true };
   }
 
+  async function hapusAbsensi(id) {
+    const target = toko.absensi.find((item) => item.id === id);
+    if (!target || target.anggotaId !== pengguna?.id) return { gagal: "Riwayat kehadiran tidak ditemukan." };
+    if (supabaseAktif) {
+      const { error } = await supabase.from("absensi").delete().eq("id", id).eq("member_id", pengguna.id);
+      if (error) return { gagal: pesanGalat(error, "Riwayat kehadiran gagal dihapus dari Supabase.") };
+    }
+    setToko((t) => ({ ...t, absensi: t.absensi.filter((item) => item.id !== id) }));
+    return { ok: true };
+  }
+
   async function catatHadir({ anggotaId, nama, token, jarak, akurasi, status }) {
     if (sudahAbsen(anggotaId, token)) return { ok: false, alasan: "duplikat" };
     const user = pengguna?.userId ? { user_id: pengguna.userId } : {};
@@ -677,6 +685,7 @@ export function PenyediaToko({ children }) {
         tambahKoreksiRekap,
         ubahKoreksiRekap,
         hapusKoreksiRekap,
+        hapusAbsensi,
         catatHadir,
         kirimPengajuan,
         putuskanPengajuan,

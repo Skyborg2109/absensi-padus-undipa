@@ -5,13 +5,13 @@ import { SUARA } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
 
 /* Tombol keluar: menghapus sesi lalu kembali ke pintu masuk. */
-export function TombolKeluar() {
+export function TombolKeluar({ className = "keterangan font-bold" }) {
   const { keluar } = pakaiAuth();
   const navigasi = useNavigate();
   return (
     <button
       type="button"
-      className="keterangan font-bold"
+      className={className}
       style={{ color: "var(--beludru)" }}
       onClick={() => {
         keluar();

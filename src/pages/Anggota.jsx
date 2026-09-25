@@ -19,23 +19,26 @@ export default function Anggota() {
     <div className="min-h-screen">
       <header className="mx-auto max-w-6xl px-5 pt-5">
         <div className="flex items-center gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--garis-tebal)] bg-white text-[var(--tinta)] lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu" aria-expanded={sidebarOpen} aria-controls="anggota-sidebar">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <button className="grid h-10 w-10 shrink-0 place-items-center border-0 bg-transparent text-[var(--tinta)] lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu" aria-expanded={sidebarOpen} aria-controls="anggota-sidebar">
               <span className="flex flex-col gap-1" aria-hidden="true">
-                <span className="h-0.5 w-4 rounded-full bg-current" />
-                <span className="h-0.5 w-4 rounded-full bg-current" />
-                <span className="h-0.5 w-4 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
               </span>
             </button>
-            <Link to="/beranda" className="flex min-w-0 items-center gap-2">
+            <Link to="/beranda" className="hidden min-w-0 items-center gap-2 lg:flex">
               <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--daun)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, flex: "none" }}>M</span>
               <span className="min-w-0 leading-tight">
                 <span className="block max-w-[10rem] truncate font-extrabold sm:max-w-none">{saya.nama}</span>
                 <span className="keterangan block max-w-[10rem] truncate sm:max-w-none" style={{ fontSize: 12.5 }}>{saya.suara}, {saya.nim ? `NIM ${saya.nim}` : "tanpa NIM"}</span>
               </span>
             </Link>
+            <Link to="/beranda" className="ml-auto min-w-0 truncate text-right text-sm font-extrabold lg:hidden" aria-label={`Kembali, ${saya.nama}`}>
+              {saya.nama}
+            </Link>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
             <Link className="btn btn-primer px-3 py-2 text-xs sm:px-5 sm:py-3 sm:text-sm" to="/anggota/pindai">
               <span className="sm:hidden">Pindai</span>
               <span className="hidden sm:inline">Pindai untuk hadir</span>
@@ -46,16 +49,19 @@ export default function Anggota() {
       </header>
       <div className="mx-auto grid max-w-6xl gap-6 px-5 pb-20 pt-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         {sidebarOpen && <button type="button" className="fixed inset-0 z-30 bg-[#2a2b52]/30 lg:hidden" aria-label="Tutup menu" onClick={() => setSidebarOpen(false)} />}
-        <aside id="anggota-sidebar" className={`buku fixed inset-y-0 left-0 z-40 w-[min(19rem,86vw)] overflow-y-auto p-3 transition-transform lg:sticky lg:top-4 lg:z-auto lg:inset-y-auto lg:h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <aside id="anggota-sidebar" className={`buku fixed inset-y-0 left-0 z-40 flex w-[min(19rem,86vw)] flex-col overflow-y-auto p-3 transition-transform lg:sticky lg:top-4 lg:z-auto lg:inset-y-auto lg:h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="flex items-center justify-between px-2 py-1">
             <span className="keterangan font-extrabold" style={{ color: "var(--daun)" }}>Menu anggota</span>
-            <button type="button" className="btn btn-kertas px-3 py-1.5 text-xs lg:hidden" onClick={() => setSidebarOpen(false)}>Tutup</button>
+            <button type="button" className="grid h-9 w-9 place-items-center border-0 bg-transparent text-[var(--tinta)] lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Tutup sidebar anggota">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
           </div>
           <nav aria-label="Bab anggota" className="mt-4 flex flex-col gap-1">
             {TAB.map(([t, label]) => (
               <Link key={t} className="tab-buku" aria-current={t === aktif ? "page" : undefined} to={t === "dasbor" ? "/anggota" : `/anggota/${t}`} onClick={() => setSidebarOpen(false)}>{label}</Link>
             ))}
           </nav>
+          <div className="mt-auto border-t pt-3 lg:hidden"><TombolKeluar className="btn btn-hantu mt-2 w-full justify-start" /></div>
         </aside>
         <main className="min-w-0">
           {aktif === "dasbor" && <Dasbor saya={saya} />}
@@ -121,7 +127,13 @@ function Dasbor({ saya }) {
               <span className="flex-1 text-sm"><b>{j.nama}.</b> <span className="keterangan">{j.tanggal}, {j.jam} — {j.lokasi}.</span></span>
             </div>
           ))}
-          <div className="p-3"><Link className="btn btn-hantu w-full" to="/anggota/pindai">Pindai untuk hadir malam ini</Link></div>
+          <div className="p-3">
+            {sesi?.status === "terbuka" ? (
+              <Link className="btn btn-hantu w-full" to="/anggota/pindai">Pindai sekarang</Link>
+            ) : (
+              <button className="btn btn-kertas w-full" type="button" disabled>{sesi ? "Sesi belum dibuka" : "Belum ada sesi"}</button>
+            )}
+          </div>
         </div>
       </div>
     </div>

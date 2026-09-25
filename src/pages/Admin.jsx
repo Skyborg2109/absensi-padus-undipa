@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Lencana, KepalaBab, PetaRadius, QrSesi, TombolKeluar } from "../components/ui.jsx";
 import { aturan, rupiah, nilaiKelayakan, SUARA } from "../data/mock.js";
+import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
 
 const TAB = [
@@ -21,6 +22,7 @@ export default function Admin() {
   const { tab = "dasbor" } = useParams();
   const aktif = TAB.some(([t]) => t === tab) ? tab : "dasbor";
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { pengguna } = pakaiAuth();
   const { jadwal, pengajuan, notifikasi, sesi, daftarAnggota } = pakaiToko();
   const hitung = {
     jadwal: jadwal.length,
@@ -32,23 +34,26 @@ export default function Admin() {
     <div className="min-h-screen">
       <header className="mx-auto max-w-6xl px-5 pt-5">
         <div className="flex items-center gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--garis-tebal)] bg-white text-[var(--tinta)] lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu" aria-expanded={sidebarOpen} aria-controls="admin-sidebar">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <button className="grid h-10 w-10 shrink-0 place-items-center border-0 bg-transparent text-[var(--tinta)] lg:hidden" type="button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu" aria-expanded={sidebarOpen} aria-controls="admin-sidebar">
               <span className="flex flex-col gap-1" aria-hidden="true">
-                <span className="h-0.5 w-4 rounded-full bg-current" />
-                <span className="h-0.5 w-4 rounded-full bg-current" />
-                <span className="h-0.5 w-4 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
               </span>
             </button>
-            <Link to="/beranda" className="flex min-w-0 items-center gap-2" aria-label="Kembali ke halaman depan">
+            <Link to="/beranda" className="hidden min-w-0 items-center gap-2 lg:flex" aria-label="Kembali ke halaman depan">
               <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 12, background: "var(--beludru)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, flex: "none" }}>P</span>
               <span className="min-w-0 leading-tight">
                 <span className="block truncate font-extrabold">Buku admin</span>
                 <span className="keterangan block max-w-[10rem] truncate sm:max-w-none" style={{ fontSize: 12.5 }}>Padus Undipa{sesi ? `, ${sesi.tanggal}` : ""}</span>
               </span>
             </Link>
+            <Link to="/beranda" className="ml-auto min-w-0 truncate text-right text-sm font-extrabold lg:hidden" aria-label={`Kembali, ${pengguna?.nama ?? "admin"}`}>
+              {pengguna?.nama ?? "Admin"}
+            </Link>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
             <Link className="btn btn-kertas px-3 py-2 text-xs sm:px-5 sm:py-3 sm:text-sm" to="/anggota">
               <span className="sm:hidden">Anggota</span>
               <span className="hidden sm:inline">Lihat sebagai anggota</span>
@@ -61,10 +66,12 @@ export default function Admin() {
 
       <div className="mx-auto grid max-w-6xl gap-6 px-5 pb-20 pt-6 lg:grid-cols-[240px_minmax(0,1fr)]">
         {sidebarOpen && <button type="button" className="fixed inset-0 z-30 bg-[#2a2b52]/30 lg:hidden" aria-label="Tutup menu" onClick={() => setSidebarOpen(false)} />}
-        <aside id="admin-sidebar" className={`buku fixed inset-y-0 left-0 z-40 w-[min(19rem,86vw)] overflow-y-auto p-3 transition-transform lg:sticky lg:top-4 lg:z-auto lg:inset-y-auto lg:h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <aside id="admin-sidebar" className={`buku fixed inset-y-0 left-0 z-40 flex w-[min(19rem,86vw)] flex-col overflow-y-auto p-3 transition-transform lg:sticky lg:top-4 lg:z-auto lg:inset-y-auto lg:h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="flex items-center justify-between px-2 py-1">
             <span className="keterangan font-extrabold" style={{ color: "var(--beludru)" }}>Menu admin</span>
-            <button type="button" className="btn btn-kertas px-3 py-1.5 text-xs lg:hidden" onClick={() => setSidebarOpen(false)}>Tutup</button>
+            <button type="button" className="grid h-9 w-9 place-items-center border-0 bg-transparent text-[var(--tinta)] lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Tutup sidebar admin">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
           </div>
           <nav aria-label="Bab buku admin" className="mt-4 flex flex-col gap-1">
             {TAB.map(([t, label, kunci]) => {
@@ -77,6 +84,7 @@ export default function Admin() {
               );
             })}
           </nav>
+          <div className="mt-auto border-t pt-3 lg:hidden"><TombolKeluar className="btn btn-hantu mt-2 w-full justify-start" /></div>
         </aside>
         <main className="min-w-0">
           {aktif === "dasbor" && <Dasbor />}
@@ -862,56 +870,155 @@ function Anggota() {
 
 /* ——— Rekap ——— */
 function Rekap() {
-  const { absensi, daftarAnggota } = pakaiToko();
+  const { absensi, daftarAnggota, koreksiRekap, tambahKoreksiRekap, ubahKoreksiRekap, hapusKoreksiRekap } = pakaiToko();
   const [filter, setFilter] = useState("Semua");
-  /* Gabungkan angka dasar dengan pindaian baru dari toko. */
+  const [cari, setCari] = useState("");
+  const [form, setForm] = useState(null);
+  const [pesan, setPesan] = useState("");
+  const [galat, setGalat] = useState("");
+  const [hapusTarget, setHapusTarget] = useState(null);
+  const [menyimpan, setMenyimpan] = useState(false);
+
   const gabung = useMemo(() => daftarAnggota.map((a) => {
     const baru = absensi.filter((r) => r.anggotaId === a.id);
     const tepat = baru.filter((r) => r.status === "tepat").length;
     const lambat = baru.filter((r) => r.status === "lambat").length;
-    return { ...a, hadir: a.hadir + tepat, lambat: a.lambat + lambat, potongan: a.potongan + lambat * 5000, baru: baru.length };
-  }), [absensi, daftarAnggota]);
+    const koreksi = koreksiRekap.find((item) => item.anggotaId === a.id);
+    if (koreksi) return { ...a, ...koreksi, manual: true, baru: baru.length };
+    return { ...a, hadir: a.hadir + tepat, lambat: a.lambat + lambat, potongan: a.potongan + lambat * 5000, manual: false, baru: baru.length };
+  }), [absensi, daftarAnggota, koreksiRekap]);
+
   const tampil = gabung.filter((a) => {
+    const kunci = cari.trim().toLowerCase();
+    const cocokNama = kunci === "" || a.nama.toLowerCase().includes(kunci) || (a.nim ?? "").includes(kunci);
+    if (!cocokNama) return false;
     if (filter === "Rentan") return a.alpa >= 2 || a.potongan >= 20000;
     if (filter === "Bersih") return a.alpa === 0 && a.lambat === 0;
     return true;
   });
+
+  const kosong = { anggotaId: "", hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpa: 0, potongan: 0, catatan: "" };
+
+  function bukaTambah() {
+    setForm({ ...kosong });
+    setGalat("");
+    setPesan("");
+  }
+
+  function bukaUbah(a) {
+    const koreksi = koreksiRekap.find((item) => item.anggotaId === a.id);
+    setForm(koreksi ? { ...koreksi, id: koreksi.id } : { ...kosong, anggotaId: a.id, hadir: a.hadir, terlambat: a.lambat, izin: a.izin, sakit: a.sakit, alpa: a.alpa, potongan: a.potongan });
+    setGalat("");
+    setPesan("");
+  }
+
+  function tutupForm() {
+    setForm(null);
+    setGalat("");
+  }
+
+  function ubahField(field, value) {
+    setForm((f) => ({ ...f, [field]: ["hadir", "terlambat", "izin", "sakit", "alpa", "potongan"].includes(field) ? Number(value) : value }));
+  }
+
+  async function simpan(e) {
+    e.preventDefault();
+    if (!form.anggotaId) {
+      setGalat("Pilih anggota terlebih dahulu.");
+      return;
+    }
+    setMenyimpan(true);
+    const hasil = form.id
+      ? await ubahKoreksiRekap(form.id, form)
+      : await tambahKoreksiRekap(form);
+    setMenyimpan(false);
+    if (hasil?.gagal) {
+      setGalat(hasil.gagal);
+      return;
+    }
+    const nama = daftarAnggota.find((a) => a.id === form.anggotaId)?.nama ?? "Anggota";
+    setPesan(`${form.id ? "Koreksi" : "Koreksi baru"} untuk ${nama} tersimpan.`);
+    setForm(null);
+  }
+
+  async function jalankanHapus() {
+    if (!hapusTarget) return;
+    const hasil = await hapusKoreksiRekap(hapusTarget.id);
+    if (hasil?.gagal) {
+      setGalat(hasil.gagal);
+      return;
+    }
+    setPesan(`Koreksi ${hapusTarget.nama} dihapus. Rekap kembali dihitung otomatis.`);
+    setHapusTarget(null);
+  }
+
   function unduh() {
-    const baris = [["Nama", "NIM", "Suara", "Hadir", "Terlambat", "Izin", "Sakit", "Alpa", "Potongan"]];
-    tampil.forEach((a) => baris.push([a.nama, a.nim, a.suara, a.hadir, a.lambat, a.izin, a.sakit, a.alpa, a.potongan]));
-    const csv = baris.map((r) => r.join(";")).join("\n");
+    const baris = [["Nama", "NIM", "Suara", "Hadir", "Terlambat", "Izin", "Sakit", "Alpa", "Potongan", "Sumber", "Catatan"]];
+    tampil.forEach((a) => baris.push([a.nama, a.nim, a.suara, a.hadir, a.lambat, a.izin, a.sakit, a.alpa, a.potongan, a.manual ? "Koreksi admin" : "Otomatis", a.catatan ?? ""]));
+    const csv = baris.map((r) => r.map((nilai) => `"${String(nilai).replaceAll('"', '""')}"`).join(";")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const el = document.createElement("a");
     el.href = url; el.download = "rekap-padus.csv"; el.click();
     URL.revokeObjectURL(url);
   }
+
   return (
     <div className="muncul">
-      <KepalaBab atas="Dapat ditelusuri ke tiap pindaian" judul="Rekap kehadiran" Charity="Hadir, terlambat, izin, sakit, dan alpa yang sudah ditetapkan — lengkap dengan potongannya. Pindaian anggota masuk ke sini otomatis." />
-      {absensi.length === 0 && <p className="keterangan mb-3">Belum ada pindaian. Buka sesi, lalu uji pindai sebagai anggota.</p>}
+      <KepalaBab atas="Dapat ditelusuri ke tiap pindaian" judul="Rekap kehadiran" Charity="Hadir, terlambat, izin, sakit, dan alpa yang sudah ditetapkan — lengkap dengan potongannya. Pindaian anggota masuk otomatis; admin dapat mengoreksi angka yang tidak sesuai." />
+      {pesan && <p role="status" className="toast mb-3" style={{ borderColor: "var(--daun)" }}>{pesan}</p>}
+      {galat && !form && <p role="alert" className="toast mb-3" style={{ borderColor: "var(--bata)" }}>{galat}</p>}
+      <div className="buku mb-3 p-3">
+        <div className="flex flex-col gap-2 md:flex-row">
+          <input className="masukkan flex-1" value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama atau NIM" aria-label="Cari rekap" />
+          <button type="button" className="btn btn-primer whitespace-nowrap" onClick={bukaTambah}>+ Tambah koreksi / data uji</button>
+        </div>
+        <p className="keterangan mt-2">Koreksi admin menggantikan angka otomatis sampai dihapus. Gunakan untuk memperbaiki data atau membuat data uji tanpa mengubah riwayat pindaian.</p>
+      </div>
       <div className="mb-3 flex flex-wrap gap-2">
         {["Semua", "Rentan", "Bersih"].map((f) => (
           <button key={f} className="btn btn-kertas" aria-pressed={filter === f} onClick={() => setFilter(f)} style={filter === f ? { borderColor: "var(--beludru)", color: "var(--beludru)" } : {}}>{f}</button>
         ))}
         <span className="flex-1" />
-        <button className="btn btn-primer" onClick={unduh}>Unduh rekap</button>
+        <button className="btn btn-primer" type="button" onClick={unduh}>Unduh rekap</button>
       </div>
       <div className="buku overflow-x-auto">
-        <table className="tabel min-w-[720px]">
-          <thead><tr><th>Anggota</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Potongan</th></tr></thead>
+        <table className="tabel min-w-[980px]">
+          <thead><tr><th>Anggota</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Potongan</th><th>Aksi</th></tr></thead>
           <tbody>
-              {tampil.map((a) => (
+            {tampil.map((a) => (
               <tr key={a.id}>
-                <td><b>{a.nama}</b> <span className="keterangan">({a.suara})</span>{a.baru > 0 && <span className="keterangan"> • baru terpindai</span>}</td>
+                <td><b>{a.nama}</b> <span className="keterangan">({a.suara})</span>{a.baru > 0 && <span className="keterangan"> • baru terpindai</span>}{a.manual && <span className="ml-1"><Lencana nada="netral" anak="Koreksi admin" /></span>}</td>
                 <td className="angka">{a.hadir}</td><td className="angka">{a.lambat}</td>
                 <td className="angka">{a.izin}</td><td className="angka">{a.sakit}</td>
                 <td className="angka" style={a.alpa >= 2 ? { color: "var(--bata)", fontWeight: 800 } : {}}>{a.alpa}</td>
                 <td className="angka">{rupiah(a.potongan)}</td>
+                <td><div className="flex flex-wrap gap-1.5"><button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5 }} onClick={() => bukaUbah(a)}>{a.manual ? "Ubah" : "Koreksi"}</button>{a.manual && <button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5, color: "var(--bata)", borderColor: "#E5B8B7" }} onClick={() => { setHapusTarget(a); setGalat(""); }}>Hapus</button>}</div></td>
               </tr>
             ))}
           </tbody>
         </table>
+        {tampil.length === 0 && <p className="keterangan p-5">Tidak ada data rekap yang cocok.</p>}
       </div>
+      {form && (
+        <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="form-rekap-judul" onClick={tutupForm}>
+          <form className="buku my-auto w-full max-w-xl p-5" onSubmit={simpan} onClick={(e) => e.stopPropagation()}>
+            <h2 id="form-rekap-judul" className="judul-bab text-2xl">{form.id ? "Ubah koreksi rekap" : "Tambah koreksi / data uji"}</h2>
+            <p className="keterangan mt-1">Isi angka final rekap untuk anggota yang dipilih.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="sm:col-span-2"><span className="cap">Anggota</span><select className="masukkan" value={form.anggotaId} disabled={Boolean(form.id)} onChange={(e) => ubahField("anggotaId", e.target.value)}><option value="">Pilih anggota</option>{daftarAnggota.map((a) => <option key={a.id} value={a.id}>{a.nama} — {a.nim ?? "tanpa NIM"}</option>)}</select></label>
+              {[["hadir", "Hadir"], ["terlambat", "Terlambat"], ["izin", "Izin"], ["sakit", "Sakit"], ["alpa", "Alpa"], ["potongan", "Potongan (Rp)"]].map(([field, label]) => <label key={field}><span className="cap">{label}</span><input className="masukkan angka" type="number" min="0" step="1" value={form[field]} onChange={(e) => ubahField(field, e.target.value)} /></label>)}
+              <label className="sm:col-span-2"><span className="cap">Catatan admin</span><textarea className="masukkan min-h-20" value={form.catatan} onChange={(e) => ubahField("catatan", e.target.value)} placeholder="Contoh: koreksi setelah verifikasi manual" /></label>
+            </div>
+            {galat && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>{galat}</p>}
+            <div className="mt-4 flex flex-wrap justify-end gap-2"><button className="btn btn-kertas" type="button" onClick={tutupForm}>Batal</button><button className="btn btn-primer" type="submit" disabled={menyimpan}>{menyimpan ? "Menyimpan…" : "Simpan rekap"}</button></div>
+          </form>
+        </div>
+      )}
+      {hapusTarget && (
+        <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="hapus-rekap-judul" onClick={() => setHapusTarget(null)}>
+          <div className="buku my-auto w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}><h2 id="hapus-rekap-judul" className="judul-bab text-2xl">Hapus koreksi?</h2><p className="keterangan mt-2">Rekap {hapusTarget.nama} akan kembali dihitung otomatis dari data anggota dan pindaian. Riwayat pindaian tidak dihapus.</p><div className="mt-5 flex justify-end gap-2"><button className="btn btn-kertas" type="button" onClick={() => setHapusTarget(null)}>Batal</button><button className="btn btn-primer" type="button" onClick={jalankanHapus}>Hapus koreksi</button></div></div>
+        </div>
+      )}
     </div>
   );
 }

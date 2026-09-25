@@ -44,6 +44,7 @@ function keadaanSegar() {
     sesi: null,
     absensi: [],
     pengajuan: [],
+    koreksiRekap: [],
     notifikasi: [],
   };
 }
@@ -62,6 +63,7 @@ function keadaanAwal() {
           jadwal: Array.isArray(d.jadwal) ? d.jadwal : [],
           absensi: Array.isArray(d.absensi) ? d.absensi : [],
           pengajuan: Array.isArray(d.pengajuan) ? d.pengajuan : [],
+          koreksiRekap: Array.isArray(d.koreksiRekap) ? d.koreksiRekap : [],
           notifikasi: Array.isArray(d.notifikasi) ? d.notifikasi : [],
         };
       }
@@ -149,6 +151,20 @@ function dariPengajuan(row) {
   };
 }
 
+function dariKoreksiRekap(row) {
+  return {
+    id: row.member_id,
+    anggotaId: row.member_id,
+    hadir: row.hadir ?? 0,
+    terlambat: row.terlambat ?? 0,
+    izin: row.izin ?? 0,
+    sakit: row.sakit ?? 0,
+    alpa: row.alpa ?? 0,
+    potongan: row.potongan ?? 0,
+    catatan: row.catatan ?? "",
+  };
+}
+
 function dariNotifikasi(row) {
   return {
     id: row.id,
@@ -189,24 +205,26 @@ export function PenyediaToko({ children }) {
   }, [toko]);
 
   const muatData = useCallback(async () => {
-    const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, notifikasiResult] = await Promise.all([
+    const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, koreksiRekapResult, notifikasiResult] = await Promise.all([
       supabase.from("profiles").select("id,nama,nim,suara,angkatan,aktif,hadir,lambat,izin,sakit,alpa,potongan").eq("role", "anggota").order("nama"),
       supabase.from("jadwal").select("*").order("created_at", { ascending: false }),
       supabase.from("sesi").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("absensi").select("*").order("created_at", { ascending: false }),
       supabase.from("pengajuan").select("*").order("created_at", { ascending: false }),
+      supabase.from("rekap_koreksi").select("*"),
       supabase.from("notifikasi").select("*").order("created_at", { ascending: false }),
     ]);
-    if (profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || notifikasiResult.error) return;
+    if (profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || koreksiRekapResult.error || notifikasiResult.error) return;
     const semuaProfil = (profilResult.data ?? []).map(dariProfil);
     setToko({
       daftarAnggota: semuaProfil.filter((a) => a.aktif),
       daftarAnggotaNonaktif: semuaProfil.filter((a) => !a.aktif),
       jadwal: (jadwalResult.data ?? []).map(dariJadwal),
       sesi: dariSesi(sesiResult.data),
-      absensi: (absensiResult.data ?? []).map(dariAbsensi),
-      pengajuan: (pengajuanResult.data ?? []).map(dariPengajuan),
-      notifikasi: (notifikasiResult.data ?? []).map(dariNotifikasi),
+       absensi: (absensiResult.data ?? []).map(dariAbsensi),
+       pengajuan: (pengajuanResult.data ?? []).map(dariPengajuan),
+       koreksiRekap: (koreksiRekapResult.data ?? []).map(dariKoreksiRekap),
+       notifikasi: (notifikasiResult.data ?? []).map(dariNotifikasi),
     });
   }, []);
 
@@ -225,6 +243,7 @@ export function PenyediaToko({ children }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "sesi" }, segarkan)
       .on("postgres_changes", { event: "*", schema: "public", table: "absensi" }, segarkan)
       .on("postgres_changes", { event: "*", schema: "public", table: "pengajuan" }, segarkan)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rekap_koreksi" }, segarkan)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifikasi" }, segarkan)
       .subscribe();
     const pengaman = setInterval(segarkan, 30000);
@@ -393,6 +412,56 @@ export function PenyediaToko({ children }) {
 
   function absensiSesi(token) {
     return toko.absensi.filter((r) => r.token === token);
+  }
+
+  function dataKoreksiRekap({ hadir, terlambat, izin, sakit, alpa, potongan, catatan }) {
+    const angka = { hadir, terlambat, izin, sakit, alpa, potongan };
+    if (Object.values(angka).some((nilai) => !Number.isInteger(nilai) || nilai < 0)) return null;
+    return { ...angka, catatan: String(catatan ?? "").trim() };
+  }
+
+  async function tambahKoreksiRekap({ anggotaId, hadir, terlambat, izin, sakit, alpa, potongan, catatan }) {
+    const target = toko.daftarAnggota.find((a) => a.id === anggotaId);
+    if (!target) return { gagal: "Anggota tidak ditemukan." };
+    if (toko.koreksiRekap.some((item) => item.anggotaId === anggotaId)) return { gagal: "Koreksi untuk anggota ini sudah ada." };
+    const data = dataKoreksiRekap({ hadir, terlambat, izin, sakit, alpa, potongan, catatan });
+    if (!data) return { gagal: "Semua angka rekap harus berupa bilangan bulat nol atau lebih." };
+    const item = { id: anggotaId, anggotaId, ...data };
+    if (supabaseAktif) {
+      const { error } = await supabase.from("rekap_koreksi").insert({ member_id: anggotaId, ...data });
+      if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal disimpan ke Supabase.") };
+    }
+    setToko((t) => ({ ...t, koreksiRekap: [...t.koreksiRekap, item] }));
+    tambahNotifikasi(`Koreksi rekap: ${target.nama}`, data.catatan || "Rekapfinal ditetapkan admin.");
+    return { ok: true };
+  }
+
+  async function ubahKoreksiRekap(id, { hadir, terlambat, izin, sakit, alpa, potongan, catatan }) {
+    const target = toko.koreksiRekap.find((item) => item.id === id);
+    const anggota = target ? toko.daftarAnggota.find((a) => a.id === target.anggotaId) : null;
+    if (!target || !anggota) return { gagal: "Koreksi rekap tidak ditemukan." };
+    const data = dataKoreksiRekap({ hadir, terlambat, izin, sakit, alpa, potongan, catatan });
+    if (!data) return { gagal: "Semua angka rekap harus berupa bilangan bulat nol atau lebih." };
+    if (supabaseAktif) {
+      const { error } = await supabase.from("rekap_koreksi").update(data).eq("member_id", id);
+      if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal diperbarui di Supabase.") };
+    }
+    setToko((t) => ({ ...t, koreksiRekap: t.koreksiRekap.map((item) => (item.id === id ? { ...item, ...data } : item)) }));
+    tambahNotifikasi(`Koreksi rekap diperbarui: ${anggota.nama}`, data.catatan || "Rekapfinal diperbarui admin.");
+    return { ok: true };
+  }
+
+  async function hapusKoreksiRekap(id) {
+    const target = toko.koreksiRekap.find((item) => item.id === id);
+    const anggota = target ? toko.daftarAnggota.find((a) => a.id === target.anggotaId) : null;
+    if (!target || !anggota) return { gagal: "Koreksi rekap tidak ditemukan." };
+    if (supabaseAktif) {
+      const { error } = await supabase.from("rekap_koreksi").delete().eq("member_id", id);
+      if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal dihapus dari Supabase.") };
+    }
+    setToko((t) => ({ ...t, koreksiRekap: t.koreksiRekap.filter((item) => item.id !== id) }));
+    tambahNotifikasi(`Koreksi rekap dihapus: ${anggota.nama}`, "Rekap kembali dihitung otomatis dari data anggota dan pindaian.");
+    return { ok: true };
   }
 
   async function catatHadir({ anggotaId, nama, token, jarak, akurasi, status }) {
@@ -573,6 +642,9 @@ export function PenyediaToko({ children }) {
         hapusSesi,
         sudahAbsen,
         absensiSesi,
+        tambahKoreksiRekap,
+        ubahKoreksiRekap,
+        hapusKoreksiRekap,
         catatHadir,
         kirimPengajuan,
         putuskanPengajuan,

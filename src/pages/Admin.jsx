@@ -23,7 +23,7 @@ export default function Admin() {
   const aktif = TAB.some(([t]) => t === tab) ? tab : "dasbor";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { pengguna } = pakaiAuth();
-  const { jadwal, pengajuan, notifikasi, sesi, daftarAnggota } = pakaiToko();
+  const { jadwal, pengajuan, notifikasi, sesi, daftarAnggota, siapData, galatData } = pakaiToko();
   const hitung = {
     jadwal: jadwal.length,
     anggota: daftarAnggota.length,
@@ -87,16 +87,18 @@ export default function Admin() {
           <div className="mt-auto border-t pt-3 lg:hidden"><TombolKeluar className="btn btn-hantu mt-2 w-full justify-start" /></div>
         </aside>
         <main className="min-w-0">
-          {aktif === "dasbor" && <Dasbor />}
-          {aktif === "jadwal" && <Jadwal />}
-          {aktif === "sesi" && <Sesi />}
-          {aktif === "anggota" && <Anggota />}
-          {aktif === "rekap" && <Rekap />}
-          {aktif === "izin" && <Izin />}
-          {aktif === "aturan" && <Aturan />}
-          {aktif === "acara" && <Acara />}
-          {aktif === "laporan" && <Laporan />}
-          {aktif === "notifikasi" && <Notifikasi />}
+          {!siapData ? <div className="toast" role="status">Memuat data dari database…</div> : galatData ? <div className="toast" role="alert" style={{ borderColor: "var(--bata)" }}>Data database gagal dimuat: {galatData}</div> : <>
+            {aktif === "dasbor" && <Dasbor />}
+            {aktif === "jadwal" && <Jadwal />}
+            {aktif === "sesi" && <Sesi />}
+            {aktif === "anggota" && <Anggota />}
+            {aktif === "rekap" && <Rekap />}
+            {aktif === "izin" && <Izin />}
+            {aktif === "aturan" && <Aturan />}
+            {aktif === "acara" && <Acara />}
+            {aktif === "laporan" && <Laporan />}
+            {aktif === "notifikasi" && <Notifikasi />}
+          </>}
         </main>
       </div>
     </div>
@@ -210,7 +212,7 @@ function nilaiAwalJadwal() {
     tanggal: new Date().toISOString().slice(0, 10),
     mulai: "19.00",
     selesai: "21.00",
-    lokasi: "Aula lantai 3",
+    lokasi: "A213",
     toleransi: 10,
     status: "Terjadwal",
   };
@@ -290,7 +292,7 @@ function Jadwal() {
           </label>
           <label>
             <span className="cap">Lokasi</span>
-            <input className="masukkan" value={form.lokasi} onChange={(e) => ubahField("lokasi", e.target.value)} placeholder="Misal: Aula lantai 3" />
+            <input className="masukkan" value={form.lokasi} onChange={(e) => ubahField("lokasi", e.target.value)} placeholder="Misal: A213" />
           </label>
           <label>
             <span className="cap">Toleransi keterlambatan: {form.toleransi} menit</span>
@@ -884,7 +886,7 @@ function Rekap() {
     const tepat = baru.filter((r) => r.status === "tepat").length;
     const lambat = baru.filter((r) => r.status === "lambat").length;
     const koreksi = koreksiRekap.find((item) => item.anggotaId === a.id);
-    if (koreksi) return { ...a, ...koreksi, manual: true, baru: baru.length };
+    if (koreksi) return { ...a, ...koreksi, lambat: koreksi.terlambat, manual: true, baru: baru.length };
     return { ...a, hadir: a.hadir + tepat, lambat: a.lambat + lambat, potongan: a.potongan + lambat * 5000, manual: false, baru: baru.length };
   }), [absensi, daftarAnggota, koreksiRekap]);
 
@@ -981,7 +983,7 @@ function Rekap() {
         <span className="flex-1" />
         <button className="btn btn-primer" type="button" onClick={unduh}>Unduh rekap</button>
       </div>
-      <div className="buku overflow-x-auto">
+      <div className="buku overflow-x-auto" style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" }}>
         <table className="tabel min-w-[980px]">
           <thead><tr><th>Anggota</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Potongan</th><th>Aksi</th></tr></thead>
           <tbody>

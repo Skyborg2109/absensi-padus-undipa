@@ -24,7 +24,7 @@ export function TombolKeluar({ className = "keterangan font-bold" }) {
 }
 
 /* Denah radius 100 m: lingkaran bersih di atas kisi titik peta. */
-export function PetaRadius({ jarak = 34, akurasi = 8, judul = "Aula lantai 3, radius 100 meter" }) {
+export function PetaRadius({ jarak = 34, akurasi = 8, judul = "Ruang A213, radius 100 meter" }) {
   const pola = useId().replace(/:/g, "peta");
   const cx = 150;
   const cy = 128;
@@ -48,7 +48,7 @@ export function PetaRadius({ jarak = 34, akurasi = 8, judul = "Aula lantai 3, ra
       <svg
         viewBox="0 0 300 256"
         role="img"
-        aria-label={`Denah radius. Jarak ${jarak} meter dari aula. ${diDalam ? "Di dalam radius." : "Di luar radius."}`}
+        aria-label={`Denah radius. Jarak ${jarak} meter dari ruang A213. ${diDalam ? "Di dalam radius." : "Di luar radius."}`}
         className="w-full"
       >
         <defs>
@@ -71,7 +71,7 @@ export function PetaRadius({ jarak = 34, akurasi = 8, judul = "Aula lantai 3, ra
         {/* Titik aula */}
         <rect x={cx - 28} y={cy - 22} width="56" height="44" rx="13" fill="var(--tinta)" />
         <text x={cx} y={cy + 5.5} textAnchor="middle" fontSize="14" fontWeight="800" fill="#fff">
-          Aula
+          A213
         </text>
         {/* Akurasi GPS + posisi anggota */}
         <circle
@@ -100,7 +100,7 @@ export function PetaRadius({ jarak = 34, akurasi = 8, judul = "Aula lantai 3, ra
         </g>
       </svg>
       <figcaption className="keterangan mt-2">
-        Akurasi GPS ±{akurasi} m. Titik aula −5.1405, 119.4832.
+        Akurasi GPS ±{akurasi} m. Titik ruang A213 −5.1405, 119.4832.
       </figcaption>
     </figure>
   );

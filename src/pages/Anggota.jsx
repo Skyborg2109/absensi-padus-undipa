@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Lencana, KepalaBab, PetaRadius, BarisAnggota, TombolKeluar } from "../components/ui.jsx";
-import { anggota as anggotaBenih, rupiah, nilaiKelayakan } from "../data/mock.js";
+import { Lencana, KepalaBab, PetaRadius, TombolKeluar } from "../components/ui.jsx";
+import { rupiah, nilaiKelayakan } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
 
@@ -12,8 +12,8 @@ export default function Anggota() {
   const aktif = TAB.some(([t]) => t === tab) ? tab : "dasbor";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { pengguna } = pakaiAuth();
-  const { daftarAnggota } = pakaiToko();
-  const daftar = daftarAnggota?.length ? daftarAnggota : anggotaBenih;
+  const { daftarAnggota, siapData, galatData } = pakaiToko();
+  const daftar = daftarAnggota ?? [];
   const saya = daftar.find((a) => a.id === pengguna?.id) ?? daftar.find((a) => a.nim === pengguna?.nim) ?? { nama: pengguna?.nama ?? "Anggota", nim: pengguna?.nim ?? "—", suara: pengguna?.suara ?? "Sopran" };
   return (
     <div className="min-h-screen">
@@ -64,25 +64,33 @@ export default function Anggota() {
           <div className="mt-auto border-t pt-3 lg:hidden"><TombolKeluar className="btn btn-hantu mt-2 w-full justify-start" /></div>
         </aside>
         <main className="min-w-0">
-          {aktif === "dasbor" && <Dasbor saya={saya} />}
-          {aktif === "pindai" && <Pindai />}
-          {aktif === "riwayat" && <Riwayat />}
-          {aktif === "izin" && <IzinSaya />}
-           {aktif === "notifikasi" && <NotifikasiSaya />}
-           {aktif === "profil" && <ProfilSaya />}
-         </main>
+          {!siapData ? <div className="toast" role="status">Memuat data dari database…</div> : galatData ? <div className="toast" role="alert" style={{ borderColor: "var(--bata)" }}>Data database gagal dimuat: {galatData}</div> : <>
+            {aktif === "dasbor" && <Dasbor saya={saya} />}
+            {aktif === "pindai" && <Pindai />}
+            {aktif === "riwayat" && <Riwayat />}
+            {aktif === "izin" && <IzinSaya />}
+            {aktif === "notifikasi" && <NotifikasiSaya />}
+            {aktif === "profil" && <ProfilSaya />}
+          </>}
+        </main>
       </div>
     </div>
   );
 }
 
 function Dasbor({ saya }) {
-  const { jadwal, sesi, absensi } = pakaiToko();
+  const { jadwal, sesi, absensi, koreksiRekap } = pakaiToko();
   const milikku = absensi.filter((r) => r.anggotaId === saya.id);
   const tepat = milikku.filter((r) => r.status === "tepat").length;
-  const lambat = milikku.filter((r) => r.status === "lambat").length;
-  const potongan = lambat * 5000;
-  const lay = nilaiKelayakan({ ...saya, hadir: tepat, lambat, potongan });
+  const lambatPindaian = milikku.filter((r) => r.status === "lambat").length;
+  const koreksi = koreksiRekap.find((item) => item.anggotaId === saya.id);
+  const hadir = koreksi?.hadir ?? (saya.hadir ?? 0) + tepat;
+  const lambat = koreksi?.terlambat ?? (saya.lambat ?? 0) + lambatPindaian;
+  const izin = koreksi?.izin ?? saya.izin ?? 0;
+  const sakit = koreksi?.sakit ?? saya.sakit ?? 0;
+  const alpa = koreksi?.alpa ?? saya.alpa ?? 0;
+  const potongan = koreksi?.potongan ?? (saya.potongan ?? 0) + lambatPindaian * 5000;
+  const lay = nilaiKelayakan({ ...saya, hadir, lambat, izin, sakit, alpa, potongan });
   const fee = 250000 - potongan;
   return (
     <div className="muncul">
@@ -112,7 +120,7 @@ function Dasbor({ saya }) {
         <div className="p-5" style={{ background: "var(--tinta)", color: "#fff", borderRadius: "var(--radius-laci)" }}>
           <p className="keterangan font-semibold" style={{ color: "#C9CAE8" }}>Status tampilmu</p>
           <p className="judul-bab mt-1 text-3xl">{lay.label}</p>
-          <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>{lay.sebab}. Hadir {tepat} kali, terlambat {lambat} kali.</p>
+          <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>{lay.sebab}. Hadir {hadir} kali, terlambat {lambat} kali.</p>
           <div className="mt-4 border-t pt-4" style={{ borderColor: "rgba(255,255,255,.2)" }}>
             <p className="keterangan" style={{ color: "#C9CAE8" }}>Perkiraan fee</p>
             <p className="display angka text-4xl">{rupiah(fee)}</p>
@@ -165,9 +173,9 @@ function formatJarak(m) {
 function zonaLokasi(jarak) {
   if (jarak == null) return { label: "Lokasi belum diketahui", nada: "netral", saran: "Tunggu GPS menemukan lokasimu." };
   if (jarak <= RADIUS_ABSEN_M)
-    return { label: "Di dalam ruangan aula", nada: "hadir", saran: "Kamu di dalam radius 100 m — lanjut ke langkah 3." };
+    return { label: "Di dalam ruang A213", nada: "hadir", saran: "Kamu di dalam radius 100 m — lanjut ke langkah 3." };
   if (jarak <= KAWASAN_KAMPUS_M)
-    return { label: "Di area kampus", nada: "lambat", saran: "Kamu di sekitar kampus tapi di luar radius aula. Mendekatlah ke aula lantai 3." };
+    return { label: "Di area kampus", nada: "lambat", saran: "Kamu di sekitar kampus tapi di luar radius A213. Mendekatlah ke ruang A213." };
   return { label: "Jauh dari kampus", nada: "alpa", saran: `Absensi akan ditolak sampai kamu mendekat ke kampus.` };
 }
 
@@ -384,7 +392,7 @@ function Pindai() {
     if (token !== sesi.token)
       return hasilGagal("alpa", "Pindaian ditolak.", "Kode tidak berlaku untuk sesi ini. Minta admin menampilkan kode terbaru di layar aula, lalu pindai ulang.");
     if (jarakEfektif > RADIUS_ABSEN_M)
-      return hasilGagal("alpa", zonaLokasi(jarakEfektif).label + ".", `Jarakmu ${formatJarak(jarakEfektif)} dari aula, batasnya 100 meter. Mendekatlah ke gedung lalu catat ulang — tidak perlu memindai QR lagi.`);
+      return hasilGagal("alpa", zonaLokasi(jarakEfektif).label + ".", `Jarakmu ${formatJarak(jarakEfektif)} dari ruang A213, batasnya 100 meter. Mendekatlah ke gedung lalu catat ulang — tidak perlu memindai QR lagi.`);
     if (sudahPernah)
       return hasilGagal("alpa", "Sudah tercatat.", "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi.");
     const kini = new Date();
@@ -474,7 +482,7 @@ function Pindai() {
               <div className="flex flex-wrap items-center gap-2">
                 <Lencana nada={zona.nada} anak={zona.label} />
                 {jarakEfektif != null && !pakaiUji && (
-                  <span className="keterangan angka">±{formatJarak(jarakEfektif)} dari aula</span>
+                  <span className="keterangan angka">±{formatJarak(jarakEfektif)} dari ruang A213</span>
                 )}
                 {gpsStatus === "memuat" && jarakEfektif == null && !pakaiUji && (
                   <span className="keterangan">Mencari sinyal GPS…</span>
@@ -500,7 +508,7 @@ function Pindai() {
             </label>
             {pakaiUji && (
               <label className="mt-2 block">
-                <span className="cap">Jarak simulasimu dari aula: {ujiJarak} meter</span>
+                <span className="cap">Jarak simulasimu dari ruang A213: {ujiJarak} meter</span>
                 <input type="range" min="5" max="180" value={ujiJarak} onChange={(e) => setUjiJarak(+e.target.value)} className="w-full" />
               </label>
             )}
@@ -641,9 +649,9 @@ function Riwayat() {
 function IzinSaya() {
   const { pengguna } = pakaiAuth();
   const { pengajuan, kirimPengajuan, daftarAnggota } = pakaiToko();
-  const daftar = daftarAnggota?.length ? daftarAnggota : anggotaBenih;
-  const saya = daftar.find((a) => a.id === pengguna?.id) ?? daftar.find((a) => a.nim === pengguna?.nim) ?? daftar[0];
-  const milikku = pengajuan.filter((p) => p.nama === saya.nama);
+  const daftar = daftarAnggota ?? [];
+  const saya = daftar.find((a) => a.id === pengguna?.id) ?? daftar.find((a) => a.nim === pengguna?.nim) ?? { nama: pengguna?.nama ?? "Anggota", suara: pengguna?.suara ?? "Sopran" };
+  const milikku = pengajuan.filter((p) => p.anggotaId === pengguna?.id);
   const [jenis, setJenis] = useState("Izin");
   const [alasan, setAlasan] = useState("");
   const [terkirim, setTerkirim] = useState(false);
@@ -677,9 +685,7 @@ function IzinSaya() {
 }
 
 function NotifikasiSaya() {
-  const { notifikasi, tandaiDibaca, daftarAnggota } = pakaiToko();
-  const daftar = daftarAnggota?.length ? daftarAnggota : anggotaBenih;
-  const contoh = daftar[9] ?? daftar[0];
+  const { notifikasi, tandaiDibaca } = pakaiToko();
   return (
     <div className="muncul">
       <KepalaBab atas="Jadwal, hasil pindaian, status izin" judul="Kabar untukmu" Charity="Sama dengan yang dilihat admin — jadwal baru, sesi dibuka, hasil pindaian, dan keputusan izin. Pesan dibaca ditandai dengan mengetuknya." />
@@ -693,8 +699,6 @@ function NotifikasiSaya() {
           </button>
         ))}
       </div>
-      <p className="keterangan mt-3">Contoh anggota lain: {contoh.nama} ({contoh.suara}) — {nilaiKelayakan(contoh).label.toLowerCase()}.</p>
-      <div className="buku mt-2"><BarisAnggota orang={contoh} kanan={<Lencana nada={nilaiKelayakan(contoh).nada} anak={nilaiKelayakan(contoh).label} />} /></div>
     </div>
   );
 }

@@ -49,7 +49,21 @@ function keadaanSegar() {
   };
 }
 
+function keadaanKosong() {
+  return {
+    daftarAnggota: [],
+    daftarAnggotaNonaktif: [],
+    jadwal: [],
+    sesi: null,
+    absensi: [],
+    pengajuan: [],
+    koreksiRekap: [],
+    notifikasi: [],
+  };
+}
+
 function keadaanAwal() {
+  if (supabaseAktif) return keadaanKosong();
   try {
     const mentah = localStorage.getItem(KUNCI_TOKO);
     if (mentah) {
@@ -58,7 +72,7 @@ function keadaanAwal() {
         return {
           ...keadaanSegar(),
           ...d,
-          daftarAnggota: Array.isArray(d.daftarAnggota) && d.daftarAnggota.length > 0 ? d.daftarAnggota : anggotaBenih.map((a) => ({ ...a, aktif: true })),
+          daftarAnggota: Array.isArray(d.daftarAnggota) ? d.daftarAnggota : anggotaBenih.map((a) => ({ ...a, aktif: true })),
           daftarAnggotaNonaktif: Array.isArray(d.daftarAnggotaNonaktif) ? d.daftarAnggotaNonaktif : [],
           jadwal: Array.isArray(d.jadwal) ? d.jadwal : [],
           absensi: Array.isArray(d.absensi) ? d.absensi : [],
@@ -196,6 +210,8 @@ async function pesanFungsiAnggota(error, fallback) {
 export function PenyediaToko({ children }) {
   const { pengguna } = pakaiAuth();
   const [toko, setToko] = useState(keadaanAwal);
+  const [siapData, setSiapData] = useState(!supabaseAktif);
+  const [galatData, setGalatData] = useState("");
 
   useEffect(() => {
     if (supabaseAktif) return;
@@ -205,28 +221,38 @@ export function PenyediaToko({ children }) {
   }, [toko]);
 
   const muatData = useCallback(async () => {
+    const koreksiRekap = pengguna?.peran === "admin"
+      ? supabase.from("rekap_koreksi").select("*")
+      : Promise.resolve({ data: [], error: null });
     const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, koreksiRekapResult, notifikasiResult] = await Promise.all([
       supabase.from("profiles").select("id,nama,nim,suara,angkatan,aktif,hadir,lambat,izin,sakit,alpa,potongan").eq("role", "anggota").order("nama"),
       supabase.from("jadwal").select("*").order("created_at", { ascending: false }),
       supabase.from("sesi").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("absensi").select("*").order("created_at", { ascending: false }),
       supabase.from("pengajuan").select("*").order("created_at", { ascending: false }),
-      supabase.from("rekap_koreksi").select("*"),
+      koreksiRekap,
       supabase.from("notifikasi").select("*").order("created_at", { ascending: false }),
     ]);
-    if (profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || koreksiRekapResult.error || notifikasiResult.error) return;
+    const commonError = profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || notifikasiResult.error;
+    if (commonError) {
+      setGalatData(commonError.message || "Data database gagal dimuat.");
+      setSiapData(true);
+      return;
+    }
     const semuaProfil = (profilResult.data ?? []).map(dariProfil);
     setToko({
       daftarAnggota: semuaProfil.filter((a) => a.aktif),
       daftarAnggotaNonaktif: semuaProfil.filter((a) => !a.aktif),
       jadwal: (jadwalResult.data ?? []).map(dariJadwal),
       sesi: dariSesi(sesiResult.data),
-       absensi: (absensiResult.data ?? []).map(dariAbsensi),
-       pengajuan: (pengajuanResult.data ?? []).map(dariPengajuan),
-       koreksiRekap: (koreksiRekapResult.data ?? []).map(dariKoreksiRekap),
-       notifikasi: (notifikasiResult.data ?? []).map(dariNotifikasi),
+      absensi: (absensiResult.data ?? []).map(dariAbsensi),
+      pengajuan: (pengajuanResult.data ?? []).map(dariPengajuan),
+      koreksiRekap: (koreksiRekapResult.data ?? []).map(dariKoreksiRekap),
+      notifikasi: (notifikasiResult.data ?? []).map(dariNotifikasi),
     });
-  }, []);
+    setGalatData("");
+    setSiapData(true);
+  }, [pengguna?.peran]);
 
   useEffect(() => {
     if (!supabaseAktif || !pengguna) return;
@@ -347,7 +373,7 @@ export function PenyediaToko({ children }) {
       nama: nama.trim(),
       tanggal: tanggal || kini.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
       jam: `${jamMenit(mulaiMenit)}–${jamSelesai}`,
-      lokasi: lokasi.trim() || "Aula lantai 3",
+      lokasi: lokasi.trim() || "A213",
       mulaiMenit,
       batasMenit,
       batasTepat: jamMenit(batasMenit),
@@ -488,7 +514,7 @@ export function PenyediaToko({ children }) {
     setToko((t) => ({ ...t, absensi: [rekam, ...t.absensi] }));
     tambahNotifikasi(
       status === "tepat" ? `Hasil pindaian ${nama}: tepat waktu` : `Hasil pindaian ${nama}: terlambat`,
-      `${rekam.jam}, jarak ${jarak} meter dari aula. Akurasi ±${akurasi} meter.`
+      `${rekam.jam}, jarak ${jarak} meter dari ruang A213. Akurasi ±${akurasi} meter.`
     );
     return { ok: true };
   }
@@ -634,6 +660,8 @@ export function PenyediaToko({ children }) {
     <Konteks.Provider
       value={{
         ...toko,
+        siapData,
+        galatData,
         tambahJadwal,
         ubahJadwal,
         hapusJadwal,

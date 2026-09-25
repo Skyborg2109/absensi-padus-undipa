@@ -55,7 +55,7 @@ export default function Login() {
       <main className="mx-auto grid max-w-6xl items-start gap-6 px-5 pb-20 pt-10 lg:grid-cols-[1fr_.9fr]">
         <div>
           <p className="mb-3">
-            <Lencana nada="hadir" anak="Sesi malam ini dibuka 18.40" />
+            <Lencana nada="hadir" anak="Sesi dibuka" />
           </p>
           <h1 className="display text-5xl sm:text-6xl">Masuk ke buku hadir.</h1>
           <p className="mt-4 max-w-[52ch] text-[16px]" style={{ color: "var(--tinta-lunak)" }}>
@@ -112,7 +112,7 @@ export default function Login() {
           </form>
         </div>
 
-        <aside className="p-6 lg:sticky lg:top-6" style={{ background: "var(--tinta)", color: "#fff", borderRadius: "var(--radius-laci)" }} aria-label="Jadwal malam ini">
+        <aside className="p-6 lg:sticky lg:top-6" style={{ background: "var(--tinta)", color: "#fff", borderRadius: "var(--radius-laci)" }} aria-label="Jadwal sesi">
           <p className="keterangan font-semibold" style={{ color: "#C9CAE8" }}>Sesi absensi</p>
           {sesi ? (
             <>

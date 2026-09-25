@@ -67,7 +67,7 @@ export default function Masuk() {
             </dl>
           </div>
 
-          <section aria-label="Denah sesi malam ini" className="lembar-qr muncul p-4">
+          <section aria-label="Denah sesi" className="lembar-qr muncul p-4">
             <PetaRadius jarak={34} akurasi={8} />
             <div className="px-2 pb-1 pt-3">
               <p className="keterangan"><b>{diRuangan.size} suara</b> sudah di dalam lingkaran</p>

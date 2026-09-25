@@ -54,11 +54,6 @@ export default function Admin() {
             </Link>
           </div>
           <div className="hidden shrink-0 items-center gap-2 lg:flex">
-            <Link className="btn btn-kertas px-3 py-2 text-xs sm:px-5 sm:py-3 sm:text-sm" to="/anggota">
-              <span className="sm:hidden">Anggota</span>
-              <span className="hidden sm:inline">Lihat sebagai anggota</span>
-            </Link>
-            <Link className="btn btn-primer px-3 py-2 text-xs sm:px-5 sm:py-3 sm:text-sm" to="/admin/sesi">Buka sesi</Link>
             <TombolKeluar />
           </div>
         </div>
@@ -180,7 +175,7 @@ function Dasbor() {
       </div>
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <div className="buku p-5">
-          <h3 className="font-extrabold">Perlu keputusan malam ini</h3>
+          <h3 className="font-extrabold">Perlu keputusan</h3>
           <p className="keterangan mt-1">{menunggu} pengajuan menunggu. {rentan} anggota sudah dua kali alpa atau lebih — satu absen lagi berarti gugur.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link className="btn btn-primer" to="/admin/izin">Periksa pengajuan</Link>

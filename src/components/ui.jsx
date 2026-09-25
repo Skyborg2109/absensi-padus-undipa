@@ -11,8 +11,7 @@ export function TombolKeluar({ className = "keterangan font-bold" }) {
   return (
     <button
       type="button"
-      className={className}
-      style={{ color: "var(--beludru)" }}
+      className={`${className} text-[var(--beludru)] transition-colors hover:text-[var(--bata)]`}
       onClick={() => {
         keluar();
         navigasi("/", { replace: true });

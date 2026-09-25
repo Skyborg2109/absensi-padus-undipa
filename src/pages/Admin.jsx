@@ -629,11 +629,6 @@ function Anggota() {
     setPesan(`${anggota.nama} berhasil diaktifkan kembali.`);
   }
 
-  const gayaPil = (aktif) =>
-    aktif
-      ? { borderColor: "var(--beludru)", color: "var(--beludru)", background: "var(--beludru-latar)", padding: ".45rem 1rem", fontSize: 13.5 }
-      : { padding: ".45rem 1rem", fontSize: 13.5 };
-
   return (
     <div className="muncul">
       <KepalaBab atas="Sopran, alto, tenor, bas" judul="Anggota" Charity="Tiap baris membawa pita warna suaranya. Cari berdasar nama atau NIM, saring berdasar kelompok suara, lalu tambah, ubah, atau hapus dari satu tempat." />
@@ -653,40 +648,22 @@ function Anggota() {
               + Tambah anggota
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-[1.15fr_.85fr]">
-            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Saring suara">
-              <span className="keterangan mr-1 font-bold">Saring:</span>
-              {["Semua", "Sopran", "Alto", "Tenor", "Bas"].map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setSuara(s)}
-                  aria-pressed={suara === s}
-                  className="btn btn-kertas"
-                  style={gayaPil(suara === s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Saring status anggota">
-              <span className="keterangan mr-1 font-bold">Status:</span>
-              {["Semua", "Aktif", "Nonaktif"].map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatus(s)}
-                  aria-pressed={status === s}
-                  className="btn btn-kertas"
-                  style={gayaPil(status === s)}
-                >
-                  {s}
-                </button>
-              ))}
-              <span className="keterangan angka ml-auto">
-                {hasil.length} dari {semuaAnggota.length} anggota
-              </span>
-            </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <label>
+              <span className="cap">Saring suara</span>
+              <select className="masukkan" value={suara} onChange={(e) => setSuara(e.target.value)} aria-label="Saring suara">
+                {["Semua", "Sopran", "Alto", "Tenor", "Bas"].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="cap">Status anggota</span>
+              <select className="masukkan" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Saring status anggota">
+                {["Semua", "Aktif", "Nonaktif"].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <span className="keterangan angka pb-2 text-right md:min-w-40">
+              {hasil.length} dari {semuaAnggota.length} anggota
+            </span>
           </div>
         </div>
       </div>

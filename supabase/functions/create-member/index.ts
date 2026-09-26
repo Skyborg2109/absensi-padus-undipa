@@ -68,7 +68,7 @@ Deno.serve(async (request) => {
     email,
     password,
     email_confirm: true,
-    user_metadata: { role: "anggota", nama: namaTersimpan, nim: nim || null, suara },
+    user_metadata: { role: "anggota", nama: namaTersimpan, display_name: namaTersimpan, nim: nim || null, suara },
   });
   if (createError || !created.user) return json({ error: createError?.message || "Akun Auth gagal dibuat." }, 400);
 

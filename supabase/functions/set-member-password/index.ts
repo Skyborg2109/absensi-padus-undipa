@@ -75,5 +75,11 @@ Deno.serve(async (request) => {
   const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, { password });
   if (updateError) return json({ error: updateError.message || "Kata sandi gagal diganti." }, 400);
 
+  const { data: userRecord } = await adminClient.auth.admin.getUserById(userId);
+  const metadata = userRecord?.user?.user_metadata ?? {};
+  await adminClient.auth.admin.updateUserById(userId, {
+    user_metadata: { ...metadata, nama: target.nama, display_name: target.nama },
+  });
+
   return json({ ok: true, nama: target.nama, nim: target.nim ?? null });
 });

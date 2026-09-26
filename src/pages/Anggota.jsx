@@ -394,6 +394,8 @@ function Pindai() {
       return hasilGagal("alpa", zonaLokasi(jarakEfektif).label + ".", `Jarakmu ${formatJarak(jarakEfektif)} dari ruang A213, batasnya 100 meter. Mendekatlah ke gedung lalu catat ulang — tidak perlu memindai QR lagi.`);
     if (sudahPernah)
       return hasilGagal("alpa", "Sudah tercatat.", "Pindaian kedua dari akun yang sama ditolak sebagai duplikat. Tidak perlu memindai lagi.");
+    if (!Number.isFinite(sesi.batasMenit))
+      return hasilGagal("lambat", "Batas tepat waktu belum terbaca.", "Data waktu sesi ini belum lengkap, jadi status tepat atau terlambat tidak bisa dipastikan dan tidak dicatat. Minta admin menutup sesi lalu membukanya kembali.");
     const kini = new Date();
     const menit = kini.getHours() * 60 + kini.getMinutes();
     const jam = kini.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });

@@ -121,16 +121,25 @@ function dariJadwal(row) {
 
 function dariSesi(row) {
   if (!row) return null;
+  const toleransi = Number(row.toleransi) || 0;
+  const jamSesi = String(row.jam ?? "").split(/[–-]/).map((v) => v.trim());
+  const mulaiDariJam = menitDariWaktu(jamSesi[0]);
+  const mulaiDariBuka = menitDariWaktu(row.dibuka_pada);
+  const mulaiMenit = Number.isFinite(row.mulai_menit) ? row.mulai_menit : (mulaiDariJam ?? mulaiDariBuka);
+  const batasDariTeks = menitDariWaktu(row.batas_tepat);
+  const batasMenit = Number.isFinite(row.batas_menit)
+    ? row.batas_menit
+    : (batasDariTeks ?? (Number.isFinite(mulaiMenit) ? mulaiMenit + toleransi : null));
   return {
     id: row.id,
     nama: row.nama,
     tanggal: row.tanggal,
     jam: row.jam,
     lokasi: row.lokasi,
-    mulaiMenit: row.mulai_menit,
-    batasMenit: row.batas_menit,
-    batasTepat: row.batas_tepat,
-    toleransi: row.toleransi,
+    mulaiMenit: mulaiMenit ?? null,
+    batasMenit: batasMenit ?? null,
+    batasTepat: row.batas_tepat ?? (Number.isFinite(batasMenit) ? jamMenit(batasMenit) : null),
+    toleransi,
     radius: row.radius,
     token: row.token,
     dibukaPada: row.dibuka_pada,

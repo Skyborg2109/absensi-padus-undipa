@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Lencana, KepalaBab, PetaRadius, TombolKeluar } from "../components/ui.jsx";
+import { Dialog, Lencana, KepalaBab, PetaRadius, TombolKeluar } from "../components/ui.jsx";
 import { rupiah, nilaiKelayakan } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
@@ -661,14 +661,15 @@ function Riwayat() {
         ))}
       </div>
       {hapusTarget && (
-        <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="hapus-riwayat-judul" onClick={() => setHapusTarget(null)}>
-          <div className="buku my-auto w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-            <h2 id="hapus-riwayat-judul" className="judul-bab text-2xl">Hapus riwayat ini?</h2>
-            <p className="keterangan mt-2">Data {hapusTarget.nama} akan dihapus dari riwayat dan rekap. Tindakan ini tidak dapat dibatalkan.</p>
-            {galat && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>{galat}</p>}
-            <div className="mt-5 flex justify-end gap-2"><button className="btn btn-kertas" type="button" onClick={() => setHapusTarget(null)}>Batal</button><button className="btn btn-primer" type="button" onClick={jalankanHapus}>Hapus riwayat</button></div>
-          </div>
-        </div>
+        <Dialog
+          idJudul="hapus-riwayat-judul"
+          judul="Hapus riwayat ini?"
+          onTutup={() => setHapusTarget(null)}
+          aksi={<button className="btn btn-primer" type="button" onClick={jalankanHapus}>Hapus riwayat</button>}
+        >
+          <p className="keterangan mt-2">Data {hapusTarget.nama} akan dihapus dari riwayat dan rekap. Tindakan ini tidak dapat dibatalkan.</p>
+          {galat && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>{galat}</p>}
+        </Dialog>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Lencana, KepalaBab, PetaRadius, QrSesi, TombolKeluar } from "../components/ui.jsx";
+import { Dialog, Lencana, KepalaBab, PetaRadius, QrSesi, TombolKeluar } from "../components/ui.jsx";
 import { aturan, rupiah, nilaiKelayakan, SUARA } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
@@ -378,16 +378,20 @@ function Sesi() {
                  <button className="btn btn-primer" onClick={() => aturSesi("terbuka")}>Buka kembali</button>
                  <button className="btn btn-kertas" onClick={() => { setKonfirmasiHapus(true); setPesan(""); }}>Hapus sesi</button>
                </div>
-               {konfirmasiHapus && (
-                 <div className="toast mt-4 text-left" role="alert" style={{ borderColor: "var(--bata)" }}>
-                   <p className="font-extrabold">Hapus sesi {sesi.nama}?</p>
-                   <p className="keterangan mt-1">Riwayat absensi tetap tersimpan, tetapi sesi dan QR tidak dapat digunakan lagi.</p>
-                   <div className="mt-3 flex flex-wrap justify-center gap-2">
-                     <button className="btn btn-primer" style={{ background: "var(--bata)" }} onClick={jalankanHapus}>Ya, hapus sesi</button>
-                     <button className="btn btn-kertas" onClick={() => setKonfirmasiHapus(false)}>Batal</button>
-                   </div>
-                 </div>
-               )}
+                {konfirmasiHapus && (
+                  <Dialog
+                    idJudul="hapus-sesi-judul"
+                    judul={`Hapus sesi ${sesi.nama}?`}
+                    onTutup={() => setKonfirmasiHapus(false)}
+                    aksi={
+                      <button type="button" className="btn btn-primer" style={{ background: "var(--bata)" }} onClick={jalankanHapus}>
+                        Ya, hapus sesi
+                      </button>
+                    }
+                  >
+                    <p className="keterangan mt-2">Riwayat absensi tetap tersimpan, tetapi sesi dan QR tidak dapat digunakan lagi.</p>
+                  </Dialog>
+                )}
             </>
           ) : (
             <>
@@ -789,25 +793,23 @@ function Anggota() {
         </form>
       )}
 
-      {/* Konfirmasi hapus */}
+      {/* Konfirmasi nonaktifkan anggota */}
       {hapusTarget && (
-        <div className="toast mb-3" role="alert" style={{ borderColor: "var(--bata)" }}>
-          <p className="font-extrabold">Nonaktifkan {hapusTarget.nama} ({hapusTarget.nim ? `NIM ${hapusTarget.nim}` : "tanpa NIM"})?</p>
-          <p className="keterangan mt-1">Akunnya tidak bisa masuk lagi sampai diaktifkan kembali. Riwayat pindaian yang sudah tercatat tetap tersimpan.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn btn-primer"
-              style={{ background: "var(--bata)" }}
-              onClick={jalankanHapus}
-            >
+        <Dialog
+          idJudul="nonaktifkan-anggota-judul"
+          judul={`Nonaktifkan ${hapusTarget.nama}?`}
+          onTutup={() => setHapusTarget(null)}
+          aksi={
+            <button type="button" className="btn btn-primer" style={{ background: "var(--bata)" }} onClick={jalankanHapus}>
               Ya, nonaktifkan
             </button>
-            <button type="button" className="btn btn-kertas" onClick={() => setHapusTarget(null)}>
-              Batal
-            </button>
-          </div>
-        </div>
+          }
+        >
+          <p className="keterangan mt-2">
+            {hapusTarget.nim ? `NIM ${hapusTarget.nim}. ` : "Tanpa NIM. "}
+            Akunnya tidak bisa masuk lagi sampai diaktifkan kembali. Riwayat pindaian yang sudah tercatat tetap tersimpan.
+          </p>
+        </Dialog>
       )}
 
       <div className="buku">
@@ -1033,9 +1035,14 @@ function Rekap() {
         </div>
       )}
       {hapusTarget && (
-        <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="hapus-rekap-judul" onClick={() => setHapusTarget(null)}>
-          <div className="buku my-auto w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}><h2 id="hapus-rekap-judul" className="judul-bab text-2xl">Hapus koreksi?</h2><p className="keterangan mt-2">Rekap {hapusTarget.nama} akan kembali dihitung otomatis dari data anggota dan pindaian. Riwayat pindaian tidak dihapus.</p><div className="mt-5 flex justify-end gap-2"><button className="btn btn-kertas" type="button" onClick={() => setHapusTarget(null)}>Batal</button><button className="btn btn-primer" type="button" onClick={jalankanHapus}>Hapus koreksi</button></div></div>
-        </div>
+        <Dialog
+          idJudul="hapus-rekap-judul"
+          judul="Hapus koreksi?"
+          onTutup={() => setHapusTarget(null)}
+          aksi={<button className="btn btn-primer" type="button" onClick={jalankanHapus}>Hapus koreksi</button>}
+        >
+          <p className="keterangan mt-2">Rekap {hapusTarget.nama} akan kembali dihitung otomatis dari data anggota dan pindaian. Riwayat pindaian tidak dihapus.</p>
+        </Dialog>
       )}
     </div>
   );

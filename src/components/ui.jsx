@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { useNavigate } from "react-router-dom";
 import { SUARA } from "../data/mock.js";
@@ -184,6 +184,51 @@ export function BarisAnggota({ orang, kanan = null, onPilih = null }) {
 
 function inisial(nama) {
   return nama.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+/* Dialog konfirmasi: muncul di tengah layar, terkunci di atas halaman,
+   ditutup lewat tombol, klik area gelap, atau tombol Escape. */
+export function Dialog({ judul, children, aksi, onTutup, idJudul = "dialog-judul" }) {
+  const tombolRef = useRef(null);
+  const tutupRef = useRef(onTutup);
+  tutupRef.current = onTutup;
+
+  useEffect(() => {
+    const overflowAwal = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    tombolRef.current?.focus();
+    function tutupDenganEscape(e) {
+      if (e.key === "Escape") tutupRef.current?.();
+    }
+    document.addEventListener("keydown", tutupDenganEscape);
+    return () => {
+      document.body.style.overflow = overflowAwal;
+      document.removeEventListener("keydown", tutupDenganEscape);
+    };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center bg-[#2a2b52]/45 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={idJudul}
+      onClick={() => onTutup?.()}
+    >
+      <div className="buku my-auto w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <h2 id={idJudul} className="judul-bab text-2xl">
+          {judul}
+        </h2>
+        {children}
+        <div className="mt-5 flex justify-end gap-2">
+          <button ref={tombolRef} type="button" className="btn btn-kertas" onClick={() => onTutup?.()}>
+            Batal
+          </button>
+          {aksi}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function KepalaBab({ atas, judul, Charity }) {

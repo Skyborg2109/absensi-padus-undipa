@@ -624,14 +624,14 @@ export function PenyediaToko({ children }) {
     if (nimBersih && toko.daftarAnggota.some((a) => a.id !== id && a.nim === nimBersih)) return { gagal: `NIM ${nimBersih} sudah dipakai anggota lain.` };
     const namaTersimpan = namaBersih || `Anggota NIM ${nimBersih}`;
     if (supabaseAktif) {
-      const { error } = await supabase.from("profiles").update({ nama: namaTersimpan, nim: nimBersih || null, suara: suaraBersih }).eq("id", id);
-      if (error) return { gagal: pesanGalat(error, "Anggota gagal diperbarui di Supabase.") };
       if (sandiBersih) {
         const { data, error: sandiError } = await supabase.functions.invoke("set-member-password", {
           body: { profileId: id, password: sandiBersih },
         });
         if (sandiError) return { gagal: data?.error ?? await pesanFungsiAnggota(sandiError, "Kata sandi gagal diganti.", "set-member-password") };
       }
+      const { error } = await supabase.from("profiles").update({ nama: namaTersimpan, nim: nimBersih || null, suara: suaraBersih }).eq("id", id);
+      if (error) return { gagal: pesanGalat(error, "Anggota gagal diperbarui di Supabase.") };
     }
     setToko((t) => ({ ...t, daftarAnggota: t.daftarAnggota.map((a) => (a.id === id ? { ...a, nama: namaTersimpan, nim: nimBersih || null, suara: suaraBersih } : a)) }));
     if (sandiBersih) tambahNotifikasi(`Kata sandi diganti: ${namaTersimpan}`, "Sandi baru berlaku untuk login berikutnya. Sampaikan sandinya lewat kanal resmi.");

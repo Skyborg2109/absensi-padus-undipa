@@ -582,9 +582,13 @@ function Anggota() {
       setGalatForm("Password awal minimal 8 karakter.");
       return;
     }
+    if (formMode?.mode === "ubah" && supabaseAktif && passwordForm && passwordForm.length < 8) {
+      setGalatForm("Password baru minimal 8 karakter.");
+      return;
+    }
     let hasilSimpan;
     if (formMode?.mode === "ubah") {
-      hasilSimpan = await ubahAnggota(formMode.id, { nama: namaForm, nim: nimForm, suara: suaraForm });
+      hasilSimpan = await ubahAnggota(formMode.id, { nama: namaForm, nim: nimForm, suara: suaraForm, sandiBaru: passwordForm });
     } else {
       hasilSimpan = await tambahAnggota({ nama: namaForm, nim: nimForm, suara: suaraForm, password: passwordForm });
     }
@@ -598,11 +602,15 @@ function Anggota() {
     setFormMode(null);
     setPasswordForm("");
     setGalatForm("");
-    setPesan(
-      formMode?.mode === "ubah"
-        ? `Perubahan ${namaForm.trim()} tersimpan.`
-        : `${namaForm.trim()} berhasil ditambahkan dan akunnya siap dipakai login.`
-    );
+    if (formMode?.mode === "ubah") {
+      setPesan(
+        hasilSimpan?.sandiDiubah
+          ? `Perubahan ${namaForm.trim()} tersimpan dan kata sandinya diganti.`
+          : `Perubahan ${namaForm.trim()} tersimpan.`
+      );
+      return;
+    }
+    setPesan(`${namaForm.trim()} berhasil ditambahkan dan akunnya siap dipakai login.`);
   }
 
   async function jalankanHapus() {
@@ -689,7 +697,7 @@ function Anggota() {
           <h3 className="font-extrabold">{formMode.mode === "ubah" ? "Ubah anggota" : "Tambah anggota baru"}</h3>
           <p className="keterangan mt-1">
             {formMode.mode === "ubah"
-              ? "Perubahan NIM langsung berlaku untuk login berikutnya."
+              ? "Perubahan NIM langsung berlaku untuk login berikutnya. Isi sandi baru hanya bila kata sandi anggota ikut diganti."
               : supabaseAktif
                 ? "Isi nama lengkap atau NIM. Akun Auth dibuat otomatis dan password awal diberikan kepada anggota."
                 : "Isi nama lengkap atau NIM. Anggota baru bisa masuk dengan kata sandi demo."}
@@ -737,6 +745,34 @@ function Anggota() {
               </label>
             )}
           </div>
+          {formMode.mode === "ubah" && (
+            <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_.8fr]">
+              <label>
+                <span className="cap">Ganti sandi (opsional)</span>
+                <input
+                  className="masukkan"
+                  type="password"
+                  value={passwordForm}
+                  onChange={(e) => setPasswordForm(e.target.value)}
+                  placeholder={supabaseAktif ? "Kosongkan bila sandi tidak diubah" : "Hanya berlaku pada mode Supabase"}
+                  autoComplete="new-password"
+                />
+                <span className="keterangan mt-1">
+                  {supabaseAktif
+                    ? "Minimal 8 karakter. Sampaikan sandi baru ke anggota lewat kanal resmi."
+                    : "Mode demo tidak menyimpan kata sandi anggota."}
+                </span>
+              </label>
+              {supabaseAktif && passwordForm && (
+                <div className="toast self-end" style={{ borderColor: "var(--garis-tebal)" }}>
+                  <p className="font-extrabold">Sandi akan diganti saat disimpan.</p>
+                  <p className="keterangan mt-1">
+                    Akun {namaForm.trim() || "anggota ini"} langsung memakai sandi baru untuk login berikutnya.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           {galatForm && (
             <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)" }}>
               {galatForm}

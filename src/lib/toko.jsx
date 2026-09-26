@@ -195,7 +195,7 @@ function pesanGalat(error, fallback) {
   return error?.message || fallback;
 }
 
-async function pesanFungsiAnggota(error, fallback) {
+async function pesanFungsiAnggota(error, fallback, namaFungsi = "create-member") {
   let pesan = pesanGalat(error, fallback);
   if (error?.context?.json) {
     try {
@@ -204,7 +204,7 @@ async function pesanFungsiAnggota(error, fallback) {
     } catch {}
   }
   if (/failed to send a request|fetch failed|network error/i.test(pesan)) {
-    return "Edge Function create-member belum dapat diakses. Deploy function dengan `supabase functions deploy create-member`, lalu coba lagi.";
+    return `Edge Function ${namaFungsi} belum dapat diakses. Deploy function dengan \`supabase functions deploy ${namaFungsi}\`, lalu coba lagi.`;
   }
   return pesan;
 }
@@ -610,23 +610,32 @@ export function PenyediaToko({ children }) {
     return { ok: true, id: item.id, email: emailAuth };
   }
 
-  async function ubahAnggota(id, { nama, nim, suara }) {
+  async function ubahAnggota(id, { nama, nim, suara, sandiBaru }) {
     const target = toko.daftarAnggota.find((a) => a.id === id);
     if (!target) return { gagal: "Anggota tidak ditemukan." };
     const namaBersih = String(nama ?? "").trim();
     const nimBersih = String(nim ?? "").trim();
     const suaraBersih = String(suara ?? "").trim();
+    const sandiBersih = String(sandiBaru ?? "");
     if (!namaBersih && !nimBersih) return { gagal: "Isi nama lengkap atau NIM." };
     if (nimBersih && !/^[0-9]{6,20}$/.test(nimBersih)) return { gagal: "NIM harus terdiri dari 6–20 digit angka." };
     if (!["Sopran", "Alto", "Tenor", "Bas"].includes(suaraBersih)) return { gagal: "Pilih kelompok suara." };
+    if (sandiBersih && sandiBersih.length < 8) return { gagal: "Password baru minimal 8 karakter." };
     if (nimBersih && toko.daftarAnggota.some((a) => a.id !== id && a.nim === nimBersih)) return { gagal: `NIM ${nimBersih} sudah dipakai anggota lain.` };
     const namaTersimpan = namaBersih || `Anggota NIM ${nimBersih}`;
     if (supabaseAktif) {
       const { error } = await supabase.from("profiles").update({ nama: namaTersimpan, nim: nimBersih || null, suara: suaraBersih }).eq("id", id);
       if (error) return { gagal: pesanGalat(error, "Anggota gagal diperbarui di Supabase.") };
+      if (sandiBersih) {
+        const { data, error: sandiError } = await supabase.functions.invoke("set-member-password", {
+          body: { profileId: id, password: sandiBersih },
+        });
+        if (sandiError) return { gagal: data?.error ?? await pesanFungsiAnggota(sandiError, "Kata sandi gagal diganti.", "set-member-password") };
+      }
     }
     setToko((t) => ({ ...t, daftarAnggota: t.daftarAnggota.map((a) => (a.id === id ? { ...a, nama: namaTersimpan, nim: nimBersih || null, suara: suaraBersih } : a)) }));
-    return { ok: true };
+    if (sandiBersih) tambahNotifikasi(`Kata sandi diganti: ${namaTersimpan}`, "Sandi baru berlaku untuk login berikutnya. Sampaikan sandinya lewat kanal resmi.");
+    return { ok: true, sandiDiubah: Boolean(sandiBersih) && supabaseAktif };
   }
 
   async function hapusAnggota(id) {

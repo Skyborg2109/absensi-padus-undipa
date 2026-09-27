@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Dialog, Lencana, KepalaBab, PetaRadius, QrSesi, TombolKeluar } from "../components/ui.jsx";
-import { aturan, rupiah, nilaiKelayakan, SUARA } from "../data/mock.js";
+import { aturan, hitungRekap, rupiah, nilaiKelayakan, SUARA } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
 
@@ -201,6 +201,17 @@ function formatTanggalJadwal(nilai) {
   return new Date(`${nilai}T00:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
+function jamMenitSesi(menit) {
+  if (!Number.isFinite(menit)) return "—";
+  return `${String(Math.floor(menit / 60) % 24).padStart(2, "0")}.${String(menit % 60).padStart(2, "0")}`;
+}
+
+function jamSelesaiSesi(sesi) {
+  const dariJam = (sesi.jam ?? "").split(/[–-]/).map((v) => v.trim());
+  const jam = Number.isFinite(sesi.selesaiMenit) ? jamMenitSesi(sesi.selesaiMenit) : dariJam[1];
+  return jam ? `pada pukul ${jam}` : "sesudah jam selesai jadwal";
+}
+
 function nilaiAwalJadwal() {
   return {
     nama: "",
@@ -217,6 +228,7 @@ function Jadwal() {
   const { jadwal, tambahJadwal, ubahJadwal, hapusJadwal } = pakaiToko();
   const [form, setForm] = useState(nilaiAwalJadwal);
   const [editId, setEditId] = useState(null);
+  const [formTerbuka, setFormTerbuka] = useState(false);
   const [pesan, setPesan] = useState("");
   const [galat, setGalat] = useState("");
 
@@ -225,10 +237,19 @@ function Jadwal() {
     setGalat("");
   }
 
-  function resetForm() {
+  function tutupForm() {
     setForm(nilaiAwalJadwal());
     setEditId(null);
     setGalat("");
+    setFormTerbuka(false);
+  }
+
+  function bukaTambah() {
+    setForm(nilaiAwalJadwal());
+    setEditId(null);
+    setGalat("");
+    setPesan("");
+    setFormTerbuka(true);
   }
 
   function mulaiEdit(j) {
@@ -245,6 +266,7 @@ function Jadwal() {
     setEditId(j.id);
     setPesan("");
     setGalat("");
+    setFormTerbuka(true);
   }
 
   async function simpan(e) {
@@ -256,17 +278,29 @@ function Jadwal() {
       return;
     }
     const namaJadwal = form.nama.trim();
-    resetForm();
+    tutupForm();
     setPesan(`${namaJadwal} ${sedangEdit ? "diperbarui" : "tersimpan"} dan langsung disiarkan ke anggota.`);
   }
 
   return (
     <div className="muncul">
       <KepalaBab atas="Fleksibel mengikuti keputusan pelatih" judul="Jadwal latihan" Charity="Tambah, ubah jam mulai dan selesai, pindah lokasi, atur toleransi, atau batalkan. Jadwal baru langsung muncul di dasbor anggota." />
+      {!formTerbuka && (
+        <div className="buku mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="keterangan m-0 min-w-0 flex-1">
+            {jadwal.length === 0
+              ? "Belum ada jadwal. Tambahkan kegiatan pertama untuk disiarkan ke anggota."
+              : `${jadwal.length} jadwal tercatat. Tekan tombol di kanan untuk menambah jadwal baru.`}
+          </p>
+          <button type="button" className="btn btn-primer whitespace-nowrap" onClick={bukaTambah}>+ Tambah jadwal baru</button>
+        </div>
+      )}
+      {pesan && <p role="status" className="toast mb-4" style={{ borderColor: "var(--daun)" }}>{pesan}</p>}
+      {formTerbuka && (
       <form onSubmit={simpan} className="buku mb-4 p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-extrabold">{editId ? "Ubah jadwal" : "Tambah jadwal baru"}</h3>
-          {editId && <button type="button" className="btn btn-kertas" onClick={resetForm}>Batal edit</button>}
+          <button type="button" className="btn btn-kertas" onClick={tutupForm}>Tutup form</button>
         </div>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <label className="md:col-span-2 lg:col-span-3">
@@ -303,11 +337,12 @@ function Jadwal() {
         {galat && <p role="alert" className="toast mt-3" style={{ borderColor: "var(--bata)", color: "var(--bata)" }}>{galat}</p>}
         <div className="mt-4 flex flex-wrap gap-2">
           <button className="btn btn-primer" type="submit">{editId ? "Simpan perubahan" : "Simpan jadwal"}</button>
-          {editId && <button className="btn btn-kertas" type="button" onClick={resetForm}>Batal</button>}
+          <button className="btn btn-kertas" type="button" onClick={tutupForm}>Batal</button>
         </div>
       </form>
-      {pesan && <p role="status" className="toast mb-4" style={{ borderColor: "var(--daun)" }}>{pesan}</p>}
-      {jadwal.length === 0 && <p className="keterangan mb-4">Belum ada jadwal. Tambah kegiatan pertama lewat formulir di atas.</p>}
+      )}
+      {jadwal.length === 0 && formTerbuka && <p className="keterangan mb-4">Belum ada jadwal. Isi formulir di atas lalu tekan Simpan jadwal.</p>}
+      {jadwal.length > 0 && (
       <div className="buku">
         {jadwal.map((j) => {
           const bagianJam = (j.jam ?? "").split(/[–-]/).map((v) => v.trim());
@@ -329,6 +364,7 @@ function Jadwal() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
@@ -364,6 +400,7 @@ function Sesi() {
               <QrSesi token={sesi.token} />
               <p className="angka mt-3 text-xl font-extrabold" style={{ letterSpacing: "-0.02em" }}>{sesi.token}</p>
               <p className="keterangan mt-1">Dibuka {sesi.dibukaPada} di {sesi.lokasi}. Disegarkan tiap 60 detik. Jangan bagikan tangkapan layar — pindaian tetap memeriksa akun dan lokasi.</p>
+              <p className="keterangan mt-1">Sesi ditutup sendiri lalu dihapus {jamSelesaiSesi(sesi)}. GTK tidak perlu menutup manual.</p>
               <div className="mt-2"><Lencana nada="hadir" anak={`Sesi terbuka — ${sudah.length} sudah terpindai`} /></div>
               <div className="mt-4 flex justify-center gap-2">
                 <button className="btn btn-kertas" onClick={() => aturSesi("jeda")}>Jeda sesi</button>
@@ -511,7 +548,7 @@ function SesiBaru({ onBuka }) {
           <input className="masukkan" value={sesiJadwal?.lokasi ?? ""} readOnly />
         </label>
         <div className="toast text-sm" style={{ borderColor: "var(--garis-tebal)" }}>
-          Toleransi keterlambatan mengikuti jadwal: <b>{sesiJadwal?.toleransi ?? 10} menit</b>. Batas tepat akan dihitung dari jam mulai.
+          Toleransi keterlambatan mengikuti jadwal: <b>{sesiJadwal?.toleransi ?? 10} menit</b>. Batas tepat akan dihitung dari jam mulai. Sesi ditutup sendiri pada pukul {selesai} lalu dihapus otomatis.
         </div>
         {galat && <p role="alert" className="toast" style={{ borderColor: "var(--bata)", color: "var(--bata)" }}>{galat}</p>}
         <div><button className="btn btn-primer" type="submit">Buka sesi sesuai jadwal dan buat QR</button></div>
@@ -881,31 +918,49 @@ function Anggota() {
 }
 
 /* ——— Rekap ——— */
-function waktuTerakhir(nilai) {
-  const waktu = Date.parse(nilai ?? "");
-  return Number.isNaN(waktu) ? 0 : waktu;
+const LABEL_PINDAIAN = { tepat: "Tepat waktu", lambat: "Terlambat" };
+const NADA_PINDAIAN = { tepat: "hadir", lambat: "lambat" };
+
+function waktuPindaian(rekam) {
+  return Date.parse(rekam.dibuatPada ?? "") || 0;
+}
+
+function tanggalPindaian(rekam) {
+  const waktu = waktuPindaian(rekam);
+  if (!waktu) return "—";
+  return new Date(waktu).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function tanggalPendaanPindaian(rekam) {
+  const waktu = waktuPindaian(rekam);
+  if (!waktu) return "";
+  return new Date(waktu).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function unduhCsv(baris, namaBerkas) {
+  const csv = baris.map((r) => r.map((nilai) => `"${String(nilai).replaceAll('"', '""')}"`).join(";")).join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const el = document.createElement("a");
+  el.href = url; el.download = namaBerkas; el.click();
+  URL.revokeObjectURL(url);
 }
 
 function Rekap() {
-  const { absensi, daftarAnggota, koreksiRekap, tambahKoreksiRekap, ubahKoreksiRekap, hapusKoreksiRekap } = pakaiToko();
+  const { absensi, daftarAnggota, sesi, jadwal, koreksiRekap, tambahKoreksiRekap, ubahKoreksiRekap, hapusKoreksiRekap } = pakaiToko();
   const [filter, setFilter] = useState("Semua");
   const [cari, setCari] = useState("");
+  const [tampilan, setTampilan] = useState("rekap");
   const [form, setForm] = useState(null);
   const [pesan, setPesan] = useState("");
   const [galat, setGalat] = useState("");
   const [hapusTarget, setHapusTarget] = useState(null);
+  const [riwayatTarget, setRiwayatTarget] = useState(null);
   const [menyimpan, setMenyimpan] = useState(false);
 
   const gabung = useMemo(() => daftarAnggota.map((a) => {
-    const baru = absensi.filter((r) => r.anggotaId === a.id);
-    const tepat = baru.filter((r) => r.status === "tepat").length;
-    const lambat = baru.filter((r) => r.status === "lambat").length;
     const koreksi = koreksiRekap.find((item) => item.anggotaId === a.id);
-    const pindaianTerakhir = baru.reduce((terakhir, r) => Math.max(terakhir, waktuTerakhir(r.dibuatPada)), 0);
-    const koreksiTerakhir = waktuTerakhir(koreksi?.diperbaruiPada);
-    const koreksiTerakhirSekali = Boolean(koreksi && (pindaianTerakhir === 0 || (koreksiTerakhir > 0 && koreksiTerakhir >= pindaianTerakhir)));
-    if (koreksiTerakhirSekali) return { ...a, ...koreksi, lambat: koreksi.terlambat, manual: true, hasKoreksi: true, baru: baru.length };
-    return { ...a, hadir: a.hadir + tepat, lambat: a.lambat + lambat, potongan: a.potongan + lambat * 5000, manual: false, hasKoreksi: Boolean(koreksi), baru: baru.length };
+    const hitung = hitungRekap(a, absensi, koreksi);
+    return { ...a, ...hitung, lambat: hitung.terlambat, hasKoreksi: Boolean(koreksi), baru: hitung.tepatBaru + hitung.lambatBaru };
   }), [absensi, daftarAnggota, koreksiRekap]);
 
   const tampil = gabung.filter((a) => {
@@ -917,12 +972,45 @@ function Rekap() {
     return true;
   });
 
+  const riwayat = useMemo(() => {
+    const peta = new Map();
+    absensi.forEach((r) => {
+      const isi = peta.get(r.anggotaId);
+      if (isi) isi.push(r);
+      else peta.set(r.anggotaId, [r]);
+    });
+    peta.forEach((isi) => isi.sort((a, b) => waktuPindaian(b) - waktuPindaian(a)));
+    return peta;
+  }, [absensi]);
+
+  function namaKegiatan(rekam) {
+    if (sesi?.token && sesi.token === rekam.token) return sesi.nama;
+    const tanggal = (rekam.dibuatPada ?? "").slice(0, 10);
+    const cocok = jadwal.find((j) => j.tanggal === tanggal);
+    return cocok?.nama ?? "Sesi latihan";
+  }
+
+  function daftarRiwayat(anggotaId) {
+    return riwayat.get(anggotaId) ?? [];
+  }
+
+  function riwayatTerakhir(anggotaId) {
+    return tanggalPendaanPindaian(daftarRiwayat(anggotaId)[0] ?? {});
+  }
+
+  const barisRiwayat = useMemo(() => tampil.flatMap((a) => daftarRiwayat(a.id).map((r) => ({ ...r, anggota: a }))), [tampil, riwayat]);
+
   const kosong = { anggotaId: "", hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpa: 0, potongan: 0, catatan: "" };
 
   function bukaTambah() {
     setForm({ ...kosong });
     setGalat("");
     setPesan("");
+  }
+
+  function bukaRiwayat(a) {
+    setRiwayatTarget(a);
+    setGalat("");
   }
 
   function bukaUbah(a) {
@@ -973,13 +1061,36 @@ function Rekap() {
   }
 
   function unduh() {
-    const baris = [["Nama", "NIM", "Suara", "Hadir", "Terlambat", "Izin", "Sakit", "Alpa", "Potongan", "Sumber", "Catatan"]];
-    tampil.forEach((a) => baris.push([a.nama, a.nim, a.suara, a.hadir, a.lambat, a.izin, a.sakit, a.alpa, a.potongan, a.manual ? "Koreksi admin" : "Otomatis", a.catatan ?? ""]));
-    const csv = baris.map((r) => r.map((nilai) => `"${String(nilai).replaceAll('"', '""')}"`).join(";")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const el = document.createElement("a");
-    el.href = url; el.download = "rekap-padus.csv"; el.click();
-    URL.revokeObjectURL(url);
+    const baris = [["Nama", "NIM", "Suara", "Hadir", "Terlambat", "Izin", "Sakit", "Alpa", "Potongan", "Terakhir hadir", "Sumber", "Catatan"]];
+    tampil.forEach((a) => baris.push([a.nama, a.nim, a.suara, a.hadir, a.lambat, a.izin, a.sakit, a.alpa, a.potongan, riwayatTerakhir(a.id), a.manual ? "Koreksi admin" : "Otomatis", a.catatan ?? ""]));
+    unduhCsv(baris, "rekap-padus.csv");
+  }
+
+  function unduhRiwayat() {
+    const baris = [["Tanggal", "Jam", "Anggota", "NIM", "Suara", "Kegiatan", "Status", "Jarak (m)", "Akurasi (m)"]];
+    barisRiwayat.forEach((r) => baris.push([tanggalPindaian(r), r.jam, r.anggota.nama, r.anggota.nim, r.anggota.suara, namaKegiatan(r), LABEL_PINDAIAN[r.status] ?? r.status, r.jarak, r.akurasi]));
+    unduhCsv(baris, "riwayat-pindaian-padus.csv");
+  }
+
+  function tabelRiwayatAnggota(daftar, denganAnggota, pesanKosong = "Belum ada riwayat pindaian untuk anggota ini.") {
+    if (daftar.length === 0) return <p className="keterangan p-5">{pesanKosong}</p>;
+    return (
+      <table className="tabel min-w-[620px]">
+        <thead><tr>{denganAnggota && <th>Anggota</th>}<th>Tanggal</th><th>Jam</th><th>Kegiatan</th><th>Status</th><th>Jarak</th></tr></thead>
+        <tbody>
+          {daftar.map((r) => (
+            <tr key={r.id}>
+              {denganAnggota && <td><b>{r.anggota.nama}</b></td>}
+              <td>{tanggalPindaian(r)}</td>
+              <td className="angka">{r.jam}</td>
+              <td>{namaKegiatan(r)}</td>
+              <td><Lencana nada={NADA_PINDAIAN[r.status] ?? "netral"} anak={LABEL_PINDAIAN[r.status] ?? r.status} /></td>
+              <td className="angka">{Number.isFinite(Number(r.jarak)) ? `${r.jarak} m` : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
   }
 
   return (
@@ -992,18 +1103,28 @@ function Rekap() {
           <input className="masukkan flex-1" value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari nama atau NIM" aria-label="Cari rekap" />
           <button type="button" className="btn btn-primer whitespace-nowrap" onClick={bukaTambah}>+ Tambah koreksi / data uji</button>
         </div>
-        <p className="keterangan mt-2">Koreksi admin menggantikan angka otomatis sampai dihapus. Gunakan untuk memperbaiki data atau membuat data uji tanpa mengubah riwayat pindaian.</p>
+        <p className="keterangan mt-2">Koreksi admin menulis angka final ke data kehadiran anggota, jadi pindaian berikutnya melanjutkan dari angka itu. Hapus koreksi untuk mengembalikan hitungan otomatis.</p>
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         {["Semua", "Rentan", "Bersih"].map((f) => (
           <button key={f} className="btn btn-kertas" aria-pressed={filter === f} onClick={() => setFilter(f)} style={filter === f ? { borderColor: "var(--beludru)", color: "var(--beludru)" } : {}}>{f}</button>
         ))}
         <span className="flex-1" />
-        <button className="btn btn-primer" type="button" onClick={unduh}>Unduh rekap</button>
+        {tampilan === "rekap" && <button className="btn btn-primer" type="button" onClick={unduh}>Unduh rekap</button>}
+        {tampilan === "riwayat" && <button className="btn btn-primer" type="button" onClick={unduhRiwayat}>Unduh riwayat</button>}
       </div>
+      <div className="buku mb-3 flex flex-wrap gap-2 p-3">
+        <span className="keterangan m-0 self-center font-semibold">Tampilkan:</span>
+        {[["rekap", "Rekap per anggota"], ["riwayat", "Riwayat absensi per tanggal"]].map(([nilai, label]) => (
+          <button key={nilai} type="button" className="btn btn-kertas" aria-pressed={tampilan === nilai} onClick={() => setTampilan(nilai)} style={tampilan === nilai ? { borderColor: "var(--beludru)", color: "var(--beludru)" } : {}}>{label}</button>
+        ))}
+        <span className="flex-1" />
+        <span className="keterangan m-0 self-center">{tampilan === "rekap" ? `${tampil.length} anggota` : `${barisRiwayat.length} pindaian`}</span>
+      </div>
+      {tampilan === "rekap" && (
       <div className="buku overflow-x-auto" style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" }}>
-        <table className="tabel min-w-[980px]">
-          <thead><tr><th>Anggota</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Potongan</th><th>Aksi</th></tr></thead>
+        <table className="tabel min-w-[1080px]">
+          <thead><tr><th>Anggota</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Potongan</th><th>Terakhir hadir</th><th>Aksi</th></tr></thead>
           <tbody>
             {tampil.map((a) => (
               <tr key={a.id}>
@@ -1012,18 +1133,37 @@ function Rekap() {
                 <td className="angka">{a.izin}</td><td className="angka">{a.sakit}</td>
                 <td className="angka" style={a.alpa >= 2 ? { color: "var(--bata)", fontWeight: 800 } : {}}>{a.alpa}</td>
                 <td className="angka">{rupiah(a.potongan)}</td>
-                <td><div className="flex flex-wrap gap-1.5"><button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5 }} onClick={() => bukaUbah(a)}>{a.hasKoreksi ? "Ubah" : "Koreksi"}</button>{a.hasKoreksi && <button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5, color: "var(--bata)", borderColor: "#E5B8B7" }} onClick={() => { setHapusTarget(a); setGalat(""); }}>Hapus</button>}</div></td>
+                <td className="angka">{riwayatTerakhir(a.id) || "—"}</td>
+                <td><div className="flex flex-wrap gap-1.5"><button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5 }} onClick={() => bukaRiwayat(a)}>Riwayat</button><button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5 }} onClick={() => bukaUbah(a)}>{a.hasKoreksi ? "Ubah" : "Koreksi"}</button>{a.hasKoreksi && <button className="btn btn-kertas" type="button" style={{ padding: ".35rem .75rem", fontSize: 12.5, color: "var(--bata)", borderColor: "#E5B8B7" }} onClick={() => { setHapusTarget(a); setGalat(""); }}>Hapus</button>}</div></td>
               </tr>
             ))}
           </tbody>
         </table>
         {tampil.length === 0 && <p className="keterangan p-5">Tidak ada data rekap yang cocok.</p>}
       </div>
+      )}
+      {tampilan === "riwayat" && (
+        <div className="buku overflow-x-auto" style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" }}>
+          {tabelRiwayatAnggota(barisRiwayat, true, "Belum ada riwayat pindaian untuk anggota yang difilter.")}
+        </div>
+      )}
+      {riwayatTarget && (
+        <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="riwayat-rekap-judul" onClick={() => setRiwayatTarget(null)}>
+          <div className="buku my-auto w-full max-w-3xl p-5" onClick={(e) => e.stopPropagation()}>
+            <h2 id="riwayat-rekap-judul" className="judul-bab text-2xl">Riwayat absensi {riwayatTarget.nama}</h2>
+            <p className="keterangan mt-1">Tanggal, jam, dan status setiap pindaian yang tercatat untuk anggota ini.</p>
+            <div className="mt-4 overflow-x-auto" style={{ overflowX: "auto" }}>
+              {tabelRiwayatAnggota(daftarRiwayat(riwayatTarget.id), false)}
+            </div>
+            <div className="mt-4 flex justify-end"><button className="btn btn-kertas" type="button" onClick={() => setRiwayatTarget(null)}>Tutup</button></div>
+          </div>
+        </div>
+      )}
       {form && (
         <div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-[#2a2b52]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="form-rekap-judul" onClick={tutupForm}>
           <form className="buku my-auto w-full max-w-xl p-5" onSubmit={simpan} onClick={(e) => e.stopPropagation()}>
             <h2 id="form-rekap-judul" className="judul-bab text-2xl">{form.id ? "Ubah koreksi rekap" : "Tambah koreksi / data uji"}</h2>
-            <p className="keterangan mt-1">Isi angka final rekap untuk anggota yang dipilih.</p>
+            <p className="keterangan mt-1">Isi angka final rekap untuk anggota yang dipilih. Angka ini langsung disimpan ke data kehadiran anggota dan menjadi dasar pindaian berikutnya.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="sm:col-span-2"><span className="cap">Anggota</span><select className="masukkan" value={form.anggotaId} disabled={Boolean(form.id)} onChange={(e) => ubahField("anggotaId", e.target.value)}><option value="">Pilih anggota</option>{daftarAnggota.map((a) => <option key={a.id} value={a.id}>{a.nama} — {a.nim ?? "tanpa NIM"}</option>)}</select></label>
               {[["hadir", "Hadir"], ["terlambat", "Terlambat"], ["izin", "Izin"], ["sakit", "Sakit"], ["alpa", "Alpa"], ["potongan", "Potongan (Rp)"]].map(([field, label]) => <label key={field}><span className="cap">{label}</span><input className="masukkan angka" type="number" min="0" step="1" value={form[field]} onChange={(e) => ubahField(field, e.target.value)} /></label>)}
@@ -1041,7 +1181,7 @@ function Rekap() {
           onTutup={() => setHapusTarget(null)}
           aksi={<button className="btn btn-primer" type="button" onClick={jalankanHapus}>Hapus koreksi</button>}
         >
-          <p className="keterangan mt-2">Rekap {hapusTarget.nama} akan kembali dihitung otomatis dari data anggota dan pindaian. Riwayat pindaian tidak dihapus.</p>
+          <p className="keterangan mt-2">Data kehadiran {hapusTarget.nama} dikembalikan ke angka sebelum koreksi, lalu rekap dihitung otomatis dari pindaian. Riwayat pindaian tidak dihapus.</p>
         </Dialog>
       )}
     </div>

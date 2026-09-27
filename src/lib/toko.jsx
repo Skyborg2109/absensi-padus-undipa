@@ -5,6 +5,8 @@ import { supabase, supabaseAktif } from "./supabase.js";
 
 const KUNCI_TOKO = "padus-toko-v2";
 const Konteks = createContext(null);
+const MENIT_SESI = 1440;
+const JEDA_HAPUS_SESI_MENIT = 2;
 
 let hitung = 0;
 function idBaru(awalan) {
@@ -24,6 +26,25 @@ function menitDariWaktu(nilai) {
   const bagian = String(nilai ?? "").split(/[.:]/).map(Number);
   if (bagian.length !== 2 || bagian.some((v) => Number.isNaN(v))) return null;
   return bagian[0] * 60 + bagian[1];
+}
+
+function menitKini() {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/* Jam selesai sesi yang lewat tengah malam dihitung sebagai menit keesokan hari. */
+function normalkanSelesai(selesaiMenit, mulaiMenit) {
+  if (!Number.isFinite(selesaiMenit)) return null;
+  if (Number.isFinite(mulaiMenit) && selesaiMenit <= mulaiMenit) return selesaiMenit + MENIT_SESI;
+  return selesaiMenit;
+}
+
+function lewatJamSelesai(selesaiMenit, mulaiMenit) {
+  if (!Number.isFinite(selesaiMenit)) return false;
+  const kini = menitKini();
+  if (!Number.isFinite(mulaiMenit) || selesaiMenit < MENIT_SESI) return kini >= selesaiMenit;
+  return kini < mulaiMenit ? kini + MENIT_SESI >= selesaiMenit : kini >= selesaiMenit;
 }
 
 function tokenBaru() {
@@ -130,6 +151,7 @@ function dariSesi(row) {
   const batasMenit = Number.isFinite(row.batas_menit)
     ? row.batas_menit
     : (batasDariTeks ?? (Number.isFinite(mulaiMenit) ? mulaiMenit + toleransi : null));
+  const selesaiMenit = normalkanSelesai(menitDariWaktu(jamSesi[1]), mulaiMenit);
   return {
     id: row.id,
     nama: row.nama,
@@ -139,6 +161,7 @@ function dariSesi(row) {
     mulaiMenit: mulaiMenit ?? null,
     batasMenit: batasMenit ?? null,
     batasTepat: row.batas_tepat ?? (Number.isFinite(batasMenit) ? jamMenit(batasMenit) : null),
+    selesaiMenit,
     toleransi,
     radius: row.radius,
     token: row.token,
@@ -176,6 +199,14 @@ function dariPengajuan(row) {
 }
 
 function dariKoreksiRekap(row) {
+  const sebelum = {
+    hadir: row.hadir_sebelum ?? null,
+    terlambat: row.terlambat_sebelum ?? null,
+    izin: row.izin_sebelum ?? null,
+    sakit: row.sakit_sebelum ?? null,
+    alpa: row.alpa_sebelum ?? null,
+    potongan: row.potongan_sebelum ?? null,
+  };
   return {
     id: row.member_id,
     anggotaId: row.member_id,
@@ -186,6 +217,7 @@ function dariKoreksiRekap(row) {
     alpa: row.alpa ?? 0,
     potongan: row.potongan ?? 0,
     catatan: row.catatan ?? "",
+    sebelum: Object.values(sebelum).some((v) => Number.isInteger(v)) ? sebelum : null,
     diperbaruiPada: row.updated_at ?? row.created_at ?? null,
   };
 }
@@ -287,6 +319,25 @@ export function PenyediaToko({ children }) {
     };
   }, [pengguna?.userId, pengguna?.id, muatData]);
 
+  /* Sesi tidak boleh hidup melewati jam selesai jadwal. Sesi yang masih terbuka
+     ditutup sendiri, lalu dihapus setelah jeda pendek supaya admin sempat
+     membaca daftar kandidat tidak hadir. */
+  useEffect(() => {
+    if (!toko.sesi || !Number.isFinite(toko.sesi.selesaiMenit)) return;
+    const pemeriksa = () => {
+      const sesiKini = toko.sesi;
+      if (!sesiKini || !lewatJamSelesai(sesiKini.selesaiMenit, sesiKini.mulaiMenit)) return;
+      if (sesiKini.status !== "ditutup") {
+        void aturSesi("ditutup");
+        return;
+      }
+      if (sesiKini.selesaiMenit + JEDA_HAPUS_SESI_MENIT <= menitKini() || sesiKini.selesaiMenit >= MENIT_SESI) void hapusSesi();
+    };
+    pemeriksa();
+    const pengatur = setInterval(pemeriksa, 15000);
+    return () => clearInterval(pengatur);
+  }, [toko.sesi]);
+
   function tambahNotifikasi(judul, isi) {
     const item = { id: idBaru("N"), judul, isi, waktu: jamKini(), belumDibaca: true };
     setToko((t) => ({ ...t, notifikasi: [item, ...t.notifikasi] }));
@@ -375,6 +426,10 @@ export function PenyediaToko({ children }) {
     const mulaiMenit = mulaiDariJadwal ?? kini.getHours() * 60 + kini.getMinutes();
     const batasMenit = mulaiMenit + (Number(toleransi) || 0);
     const jamSelesai = selesai || jamMenit(mulaiMenit + 120);
+    const selesaiMenit = normalkanSelesai(menitDariWaktu(jamSelesai), mulaiMenit);
+    if (lewatJamSelesai(selesaiMenit, mulaiMenit)) {
+      return { gagal: `Jam selesai ${jamSelesai} sudah lewat. Sesi akan langsung ditutup sendiri — ubah jam jadwal menjadi kegiatan yang belum selesai.` };
+    }
     const item = {
       id: idBaru("S"),
       jadwalId: jadwalId ?? null,
@@ -385,6 +440,7 @@ export function PenyediaToko({ children }) {
       mulaiMenit,
       batasMenit,
       batasTepat: jamMenit(batasMenit),
+      selesaiMenit,
       toleransi: Number(toleransi) || 0,
       radius: 100,
       token: tokenBaru(),
@@ -454,18 +510,55 @@ export function PenyediaToko({ children }) {
     return { ...angka, catatan: String(catatan ?? "").trim() };
   }
 
+  function kolomProfil(angka) {
+    return {
+      hadir: angka.hadir ?? 0,
+      lambat: angka.terlambat ?? angka.lambat ?? 0,
+      izin: angka.izin ?? 0,
+      sakit: angka.sakit ?? 0,
+      alpa: angka.alpa ?? 0,
+      potongan: angka.potongan ?? 0,
+    };
+  }
+
+  function kolomSebelum(sebelum) {
+    return {
+      hadir_sebelum: sebelum.hadir ?? 0,
+      terlambat_sebelum: sebelum.terlambat ?? sebelum.lambat ?? 0,
+      izin_sebelum: sebelum.izin ?? 0,
+      sakit_sebelum: sebelum.sakit ?? 0,
+      alpa_sebelum: sebelum.alpa ?? 0,
+      potongan_sebelum: sebelum.potongan ?? 0,
+    };
+  }
+
+  /* Angka rekap koreksi adalah angka final anggota, jadi ditulis juga ke data
+     kehadiran anggota. Absensi berikutnya langsung melanjutkan dari angka ini. */
+  async function terapkanKeAnggota(anggotaId, angka) {
+    const data = kolomProfil(angka);
+    if (supabaseAktif) {
+      const { error } = await supabase.from("profiles").update(data).eq("id", anggotaId);
+      if (error) return { gagal: pesanGalat(error, "Data kehadiran anggota gagal diperbarui di Supabase.") };
+    }
+    setToko((t) => ({ ...t, daftarAnggota: t.daftarAnggota.map((a) => (a.id === anggotaId ? { ...a, ...data } : a)) }));
+    return { ok: true };
+  }
+
   async function tambahKoreksiRekap({ anggotaId, hadir, terlambat, izin, sakit, alpa, potongan, catatan }) {
     const target = toko.daftarAnggota.find((a) => a.id === anggotaId);
     if (!target) return { gagal: "Anggota tidak ditemukan." };
     if (toko.koreksiRekap.some((item) => item.anggotaId === anggotaId)) return { gagal: "Koreksi untuk anggota ini sudah ada." };
     const data = dataKoreksiRekap({ hadir, terlambat, izin, sakit, alpa, potongan, catatan });
     if (!data) return { gagal: "Semua angka rekap harus berupa bilangan bulat nol atau lebih." };
+    const sebelum = kolomProfil(target);
     const diperbaruiPada = new Date().toISOString();
-    const item = { id: anggotaId, anggotaId, ...data, diperbaruiPada };
+    const item = { id: anggotaId, anggotaId, ...data, sebelum, diperbaruiPada };
     if (supabaseAktif) {
-      const { error } = await supabase.from("rekap_koreksi").insert({ member_id: anggotaId, updated_at: diperbaruiPada, ...data });
+      const { error } = await supabase.from("rekap_koreksi").insert({ member_id: anggotaId, updated_at: diperbaruiPada, ...data, ...kolomSebelum(sebelum) });
       if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal disimpan ke Supabase.") };
     }
+    const hasil = await terapkanKeAnggota(anggotaId, data);
+    if (hasil?.gagal) return hasil;
     setToko((t) => ({ ...t, koreksiRekap: [...t.koreksiRekap, item] }));
     tambahNotifikasi(`Koreksi rekap: ${target.nama}`, data.catatan || "Rekapfinal ditetapkan admin.");
     return { ok: true };
@@ -477,12 +570,15 @@ export function PenyediaToko({ children }) {
     if (!target || !anggota) return { gagal: "Koreksi rekap tidak ditemukan." };
     const data = dataKoreksiRekap({ hadir, terlambat, izin, sakit, alpa, potongan, catatan });
     if (!data) return { gagal: "Semua angka rekap harus berupa bilangan bulat nol atau lebih." };
+    const sebelum = target.sebelum ?? kolomProfil(anggota);
     const diperbaruiPada = new Date().toISOString();
     if (supabaseAktif) {
-      const { error } = await supabase.from("rekap_koreksi").update({ ...data, updated_at: diperbaruiPada }).eq("member_id", id);
+      const { error } = await supabase.from("rekap_koreksi").update({ ...data, updated_at: diperbaruiPada, ...kolomSebelum(sebelum) }).eq("member_id", id);
       if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal diperbarui di Supabase.") };
     }
-    setToko((t) => ({ ...t, koreksiRekap: t.koreksiRekap.map((item) => (item.id === id ? { ...item, ...data, diperbaruiPada } : item)) }));
+    const hasil = await terapkanKeAnggota(anggota.id, data);
+    if (hasil?.gagal) return hasil;
+    setToko((t) => ({ ...t, koreksiRekap: t.koreksiRekap.map((item) => (item.id === id ? { ...item, ...data, sebelum, diperbaruiPada } : item)) }));
     tambahNotifikasi(`Koreksi rekap diperbarui: ${anggota.nama}`, data.catatan || "Rekapfinal diperbarui admin.");
     return { ok: true };
   }
@@ -495,6 +591,8 @@ export function PenyediaToko({ children }) {
       const { error } = await supabase.from("rekap_koreksi").delete().eq("member_id", id);
       if (error) return { gagal: pesanGalat(error, "Koreksi rekap gagal dihapus dari Supabase.") };
     }
+    const hasil = target.sebelum ? await terapkanKeAnggota(anggota.id, target.sebelum) : { ok: true };
+    if (hasil?.gagal) return hasil;
     setToko((t) => ({ ...t, koreksiRekap: t.koreksiRekap.filter((item) => item.id !== id) }));
     tambahNotifikasi(`Koreksi rekap dihapus: ${anggota.nama}`, "Rekap kembali dihitung otomatis dari data anggota dan pindaian.");
     return { ok: true };

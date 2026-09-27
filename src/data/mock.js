@@ -48,3 +48,44 @@ export function nilaiKelayakan(a) {
   if (a.potongan >= 20000) return { label: "Perlu perhatian", nada: "lambat", sebab: `Potongan ${rupiah(a.potongan)}` };
   return { label: "Layak tampil", nada: "hadir", sebab: "Hadir teratur" };
 }
+
+const waktuPindaian = (r) => Date.parse(r.dibuatPada ?? "") || 0;
+
+/* Rekap berjalan: angka yang sudah ada (dari simpanan anggota atau koreksi admin)
+   ditambah pindaian yang masuk sesudahnya. Pindaian baru menambah angka, tidak
+   pernah mengulang atau menggeser rekap ke bawah. */
+export function hitungRekap(anggota, seluruhPindaian, koreksi) {
+  const milik = (seluruhPindaian ?? []).filter((r) => r.anggotaId === anggota.id);
+  const adaKoreksi = Boolean(koreksi);
+  const batasKoreksi = adaKoreksi ? Date.parse(koreksi.diperbaruiPada ?? "") || 0 : 0;
+  const ditambahkan = batasKoreksi > 0 ? milik.filter((r) => waktuPindaian(r) > batasKoreksi) : milik;
+  const tepat = ditambahkan.filter((r) => r.status === "tepat").length;
+  const lambat = ditambahkan.filter((r) => r.status === "lambat").length;
+  const dasar = adaKoreksi
+    ? {
+        hadir: koreksi.hadir ?? 0,
+        terlambat: koreksi.terlambat ?? 0,
+        izin: koreksi.izin ?? 0,
+        sakit: koreksi.sakit ?? 0,
+        alpa: koreksi.alpa ?? 0,
+        potongan: koreksi.potongan ?? 0,
+      }
+    : {
+        hadir: anggota.hadir ?? 0,
+        terlambat: anggota.lambat ?? 0,
+        izin: anggota.izin ?? 0,
+        sakit: anggota.sakit ?? 0,
+        alpa: anggota.alpa ?? 0,
+        potongan: anggota.potongan ?? 0,
+      };
+  return {
+    ...dasar,
+    hadir: dasar.hadir + tepat,
+    terlambat: dasar.terlambat + lambat,
+    potongan: dasar.potongan + lambat * 5000,
+    tepatBaru: tepat,
+    lambatBaru: lambat,
+    catatan: adaKoreksi ? koreksi.catatan ?? "" : "",
+    manual: adaKoreksi,
+  };
+}

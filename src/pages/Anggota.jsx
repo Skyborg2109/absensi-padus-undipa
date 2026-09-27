@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Dialog, Lencana, KepalaBab, PetaRadius, TombolKeluar } from "../components/ui.jsx";
-import { rupiah, nilaiKelayakan } from "../data/mock.js";
+import { hitungRekap, rupiah, nilaiKelayakan } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
 
@@ -76,21 +76,16 @@ export default function Anggota() {
 
 function Dasbor({ saya }) {
   const { jadwal, sesi, absensi, koreksiRekap } = pakaiToko();
-  const milikku = absensi.filter((r) => r.anggotaId === saya.id);
-  const tepat = milikku.filter((r) => r.status === "tepat").length;
-  const lambatPindaian = milikku.filter((r) => r.status === "lambat").length;
   const koreksi = koreksiRekap.find((item) => item.anggotaId === saya.id);
-  const waktuPindaian = milikku.reduce((terakhir, r) => Math.max(terakhir, Date.parse(r.dibuatPada ?? "") || 0), 0);
-  const waktuKoreksi = Date.parse(koreksi?.diperbaruiPada ?? "");
-  const koreksiAktif = Boolean(koreksi && (waktuPindaian === 0 || (!Number.isNaN(waktuKoreksi) && waktuKoreksi >= waktuPindaian)));
-  const hadir = koreksiAktif ? koreksi.hadir : (saya.hadir ?? 0) + tepat;
-  const lambat = koreksiAktif ? koreksi.terlambat : (saya.lambat ?? 0) + lambatPindaian;
-  const izin = koreksiAktif ? koreksi.izin : saya.izin ?? 0;
-  const sakit = koreksiAktif ? koreksi.sakit : saya.sakit ?? 0;
-  const alpa = koreksiAktif ? koreksi.alpa : saya.alpa ?? 0;
-  const potongan = koreksiAktif ? koreksi.potongan : (saya.potongan ?? 0) + lambatPindaian * 5000;
+  const rekap = hitungRekap(saya, absensi, koreksi);
+  const hadir = rekap.hadir;
+  const lambat = rekap.terlambat;
+  const izin = rekap.izin;
+  const sakit = rekap.sakit;
+  const alpa = rekap.alpa;
+  const potongan = rekap.potongan;
   const lay = nilaiKelayakan({ ...saya, hadir, lambat, izin, sakit, alpa, potongan });
-  const fee = 250000 - potongan;
+  const fee = Math.max(250000 - potongan, 0);
   return (
     <div className="muncul">
       <KepalaBab atas={sesi ? "Ada latihan" : "Belum ada sesi"} judul={`Halo, ${saya.nama.split(" ")[0]}.`} Charity={sesi ? `Sesi ${sesi.nama} di ${sesi.lokasi}. Datang sebelum ${sesi.batasTepat} agar tercatat tepat waktu.` : "Admin belum membuka sesi. Jadwal baru akan muncul di bawah saat ditambahkan."} />

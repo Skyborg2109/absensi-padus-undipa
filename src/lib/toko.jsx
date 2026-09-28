@@ -61,6 +61,15 @@ function tokenBaru() {
   return `PDU-${dd}${mm}-${acak}`;
 }
 
+/* Gladi dan pengukuhan berdiri sendiri dari jadwal latihan, jadi bawa nilai
+   bawaan yang sama dengan migration 0012 bila tabel belum tersedia. */
+function acaraBawaan() {
+  return [
+    { jenis: "gladi", nama: "Gladi kotor", tanggal: "2026-09-26", jam: "09.00", lokasi: "Gedung serbaguna", toleransi: 5, catatan: "Tidak hadir berarti potongan Rp25.000." },
+    { jenis: "pengukuhan", nama: "Pengukuhan", tanggal: "2026-09-27", jam: "08.00", lokasi: "", toleransi: 0, catatan: "Tidak tepat waktu berarti potongan Rp25.000. Tidak hadir berarti tanpa fee — tanpa pengecualian." },
+  ];
+}
+
 function keadaanSegar() {
   return {
     daftarAnggota: anggotaBenih.map((a) => ({ ...a, aktif: true })),
@@ -71,6 +80,7 @@ function keadaanSegar() {
     pengajuan: [],
     koreksiRekap: [],
     notifikasi: [],
+    acara: acaraBawaan(),
   };
 }
 
@@ -84,6 +94,7 @@ function keadaanKosong() {
     pengajuan: [],
     koreksiRekap: [],
     notifikasi: [],
+    acara: acaraBawaan(),
   };
 }
 
@@ -104,6 +115,7 @@ function keadaanAwal() {
           pengajuan: Array.isArray(d.pengajuan) ? d.pengajuan : [],
           koreksiRekap: Array.isArray(d.koreksiRekap) ? d.koreksiRekap : [],
           notifikasi: Array.isArray(d.notifikasi) ? d.notifikasi : [],
+          acara: Array.isArray(d.acara) && d.acara.length > 0 ? d.acara : acaraBawaan(),
         };
       }
     }
@@ -236,6 +248,18 @@ function dariNotifikasi(row) {
   };
 }
 
+function dariAcara(row) {
+  return {
+    jenis: row.jenis,
+    nama: row.nama ?? "",
+    tanggal: row.tanggal ?? "",
+    jam: row.jam ?? "",
+    lokasi: row.lokasi ?? "",
+    toleransi: row.toleransi ?? 0,
+    catatan: row.catatan ?? "",
+  };
+}
+
 function pesanGalat(error, fallback) {
   return error?.message || fallback;
 }
@@ -268,7 +292,7 @@ export function PenyediaToko({ children }) {
   }, [toko]);
 
   const muatData = useCallback(async () => {
-    const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, koreksiRekapResult, notifikasiResult] = await Promise.all([
+    const [profilResult, jadwalResult, sesiResult, absensiResult, pengajuanResult, koreksiRekapResult, notifikasiResult, acaraResult] = await Promise.all([
       supabase.from("profiles").select("id,nama,nim,suara,angkatan,aktif,hadir,lambat,izin,sakit,alpa,potongan").eq("role", "anggota").order("nama"),
       supabase.from("jadwal").select("*").order("created_at", { ascending: false }),
       supabase.from("sesi").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -276,6 +300,7 @@ export function PenyediaToko({ children }) {
       supabase.from("pengajuan").select("*").order("created_at", { ascending: false }),
       supabase.from("rekap_koreksi").select("*"),
       supabase.from("notifikasi").select("*").order("created_at", { ascending: false }),
+      supabase.from("acara").select("*"),
     ]);
     const commonError = profilResult.error || jadwalResult.error || sesiResult.error || absensiResult.error || pengajuanResult.error || notifikasiResult.error;
     if (commonError) {
@@ -293,6 +318,7 @@ export function PenyediaToko({ children }) {
       pengajuan: (pengajuanResult.data ?? []).map(dariPengajuan),
       koreksiRekap: (koreksiRekapResult.data ?? []).map(dariKoreksiRekap),
       notifikasi: (notifikasiResult.data ?? []).map(dariNotifikasi),
+      acara: acaraResult.error ? (keadaanAwal().acara ?? acaraBawaan()) : (acaraResult.data ?? []).map(dariAcara),
     });
     setGalatData("");
     setSiapData(true);
@@ -315,6 +341,7 @@ export function PenyediaToko({ children }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "pengajuan" }, segarkan)
       .on("postgres_changes", { event: "*", schema: "public", table: "rekap_koreksi" }, segarkan)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifikasi" }, segarkan)
+      .on("postgres_changes", { event: "*", schema: "public", table: "acara" }, segarkan)
       .subscribe();
     const pengaman = setInterval(segarkan, 30000);
     return () => {
@@ -410,6 +437,27 @@ export function PenyediaToko({ children }) {
     }
     setToko((t) => ({ ...t, jadwal: t.jadwal.map((j) => (j.id === id ? { ...j, ...item } : j)) }));
     tambahNotifikasi("Jadwal diperbarui: " + item.nama, `${item.tanggal}, ${item.jam} di ${item.lokasi}.`);
+    return { ok: true };
+  }
+
+  async function simpanAcara({ jenis, nama, tanggal, jam, lokasi, toleransi, catatan }) {
+    if (!["gladi", "pengukuhan"].includes(jenis)) return { gagal: "Jenis acara tidak dikenal." };
+    if (!tanggal || !jam) return { gagal: "Tanggal dan jam wajib diisi." };
+    const item = {
+      jenis,
+      nama: String(nama ?? "").trim() || (jenis === "gladi" ? "Gladi kotor" : "Pengukuhan"),
+      tanggal,
+      jam,
+      lokasi: String(lokasi ?? "").trim(),
+      toleransi: Number(toleransi) || 0,
+      catatan: String(catatan ?? "").trim(),
+    };
+    if (supabaseAktif) {
+      const { error } = await supabase.from("acara").upsert({ ...item, updated_at: new Date().toISOString() }, { onConflict: "jenis" });
+      if (error) return { gagal: pesanGalat(error, "Acara gagal disimpan ke Supabase. Jalankan `supabase db push` bila tabel acara belum ada.") };
+    }
+    setToko((t) => ({ ...t, acara: [...t.acara.filter((a) => a.jenis !== jenis), item].sort((a, b) => a.jenis.localeCompare(b.jenis)) }));
+    tambahNotifikasi(`Acara diperbarui: ${item.nama}`, `${item.tanggal}, ${item.jam}${item.lokasi ? ` di ${item.lokasi}` : ""}.`);
     return { ok: true };
   }
 
@@ -871,6 +919,7 @@ export function PenyediaToko({ children }) {
         tambahJadwal,
         ubahJadwal,
         hapusJadwal,
+        simpanAcara,
         bukaSesi,
         aturSesi,
         hapusSesi,

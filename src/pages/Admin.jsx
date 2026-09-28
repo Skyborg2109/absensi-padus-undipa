@@ -1294,23 +1294,107 @@ function Aturan() {
 }
 
 /* ——— Acara ——— */
+const JENIS_ACARA = { gladi: "Gladi kotor", pengukuhan: "Pengukuhan" };
+const CATATAN_GLADI = "Tidak hadir berarti potongan Rp25.000.";
+const CATATAN_PENGUKUHAN = "Tidak tepat waktu berarti potongan Rp25.000. Tidak hadir berarti tanpa fee — tanpa pengecualian.";
+
+function formatTanggalAcara(nilai) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nilai ?? "")) return nilai || "—";
+  const hari = new Date(`${nilai}T00:00:00`);
+  return `${hari.toLocaleDateString("id-ID", { weekday: "long" })} ${hari.toLocaleDateString("id-ID", { day: "numeric", month: "short" })}`;
+}
+
 function Acara() {
+  const { acara, simpanAcara } = pakaiToko();
+  const [form, setForm] = useState(null);
+  const [galat, setGalat] = useState("");
+  const [pesan, setPesan] = useState("");
+  const daftar = ["gladi", "pengukuhan"].map((jenis) => acara.find((a) => a.jenis === jenis) ?? { jenis, nama: JENIS_ACARA[jenis], tanggal: "", jam: "", lokasi: "", toleransi: 0, catatan: "" });
+
+  function mulaiEdit(acara) {
+    setForm({
+      jenis: acara.jenis,
+      nama: acara.nama || JENIS_ACARA[acara.jenis],
+      tanggal: /^\d{4}-\d{2}-\d{2}$/.test(acara.tanggal ?? "") ? acara.tanggal : new Date().toISOString().slice(0, 10),
+      jam: acara.jam || "09.00",
+      lokasi: acara.lokasi ?? "",
+      toleransi: acara.toleransi ?? 0,
+      catatan: acara.catatan ?? "",
+    });
+    setGalat("");
+    setPesan("");
+  }
+
+  function tutupForm() {
+    setForm(null);
+    setGalat("");
+  }
+
+  function ubahField(field, value) {
+    setForm((f) => ({ ...f, [field]: field === "toleransi" ? Number(value) : value }));
+    setGalat("");
+  }
+
+  async function simpan(e) {
+    e.preventDefault();
+    if (!form) return;
+    const hasil = await simpanAcara(form);
+    if (hasil?.gagal) {
+      setGalat(hasil.gagal);
+      return;
+    }
+    const tersimpan = form;
+    tutupForm();
+    setPesan(`${tersimpan.nama} untuk ${tersimpan.tanggal}, ${tersimpan.jam} tersimpan dan langsung disiarkan ke anggota.`);
+  }
+
   return (
     <div className="muncul">
-      <KepalaBab atas="Gladi dan pengukuhan dicatat terpisah" judul="Acara wisuda" Charity="Satu anggota satu catatan per acara. Status pengukuhan menentukan fee." />
+      <KepalaBab atas="Gladi dan pengukuhan dicatat terpisah" judul="Acara wisuda" Charity="Satu anggota satu catatan per acara. Ubah tanggal, jam, lokasi, atau ketentuannya di sini. Status pengukuhan menentukan fee." />
+      {pesan && <p role="status" className="toast mb-4" style={{ borderColor: "var(--daun)" }}>{pesan}</p>}
       <div className="grid gap-4 md:grid-cols-2">
-        <article className="buku p-5">
-          <Lencana nada="lambat" anak="Gladi kotor" />
-          <h3 className="judul-bab mt-2 text-2xl">Sabtu 26 Sep, 09.00</h3>
-          <p className="keterangan mt-1">Gedung serbaguna. Toleransi 5 menit. Tidak hadir berarti potongan Rp25.000.</p>
-          <div className="mt-3 flex gap-2 text-sm"><span className="angka font-extrabold">14 siap</span><span className="keterangan">2 perlu dihubungi</span></div>
-        </article>
-        <article className="p-5" style={{ background: "var(--kuningan-latar)", borderRadius: "var(--radius-laci)", border: "1.5px solid #D9C47A" }}>
-          <Lencana nada="hadir" anak="Pengukuhan" />
-          <h3 className="judul-bab mt-2 text-2xl">Minggu 27 Sep, 08.00</h3>
-          <p className="mt-1 text-sm" style={{ color: "#5C4A12" }}>Tidak tepat waktu berarti potongan Rp25.000. Tidak hadir berarti tanpa fee — tanpa pengecualian.</p>
-        </article>
+        {daftar.map((item) => {
+          const pengukuhan = item.jenis === "pengukuhan";
+          const gayaTeks = pengukuhan ? { color: "#5C4A12" } : undefined;
+          return (
+            <article
+              key={item.jenis}
+              className={pengukuhan ? "p-5" : "buku p-5"}
+              style={pengukuhan ? { background: "var(--kuningan-latar)", borderRadius: "var(--radius-laci)", border: "1.5px solid #D9C47A" } : undefined}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Lencana nada={pengukuhan ? "hadir" : "lambat"} anak={JENIS_ACARA[item.jenis]} />
+                <button type="button" className="btn btn-kertas ml-auto" style={{ padding: ".35rem .85rem", fontSize: 13 }} onClick={() => mulaiEdit(item)}>Ubah</button>
+              </div>
+              <h3 className="judul-bab mt-2 text-2xl">{item.tanggal ? `${formatTanggalAcara(item.tanggal)}, ${item.jam}` : "Tanggal belum ditentukan"}</h3>
+              {item.lokasi && <p className={`mt-1 text-sm ${pengukuhan ? "" : "keterangan"}`} style={gayaTeks}>{item.lokasi}{!pengukuhan ? `. Toleransi ${item.toleransi} menit` : ""}.</p>}
+              <p className={`mt-1 text-sm ${pengukuhan ? "" : "keterangan"}`} style={gayaTeks}>{item.catatan || (pengukuhan ? CATATAN_PENGUKUHAN : CATATAN_GLADI)}</p>
+              {!pengukuhan && <div className="mt-3 flex gap-2 text-sm"><span className="angka font-extrabold">14 siap</span><span className="keterangan">2 perlu dihubungi</span></div>}
+            </article>
+          );
+        })}
       </div>
+      {form && (
+        <Dialog
+          idJudul="acara-judul"
+          judul={`Ubah ${JENIS_ACARA[form.jenis]}`}
+          onTutup={tutupForm}
+          aksi={<button className="btn btn-primer" type="button" onClick={simpan}>Simpan acara</button>}
+        >
+          <form onSubmit={simpan} className="mt-2 grid gap-3">
+            <label><span className="cap">Nama acara</span><input className="masukkan" value={form.nama} onChange={(e) => ubahField("nama", e.target.value)} /></label>
+            <label><span className="cap">Tanggal</span><input className="masukkan" type="date" value={form.tanggal} onChange={(e) => ubahField("tanggal", e.target.value)} /></label>
+            <label><span className="cap">Jam</span><input className="masukkan" type="time" value={form.jam} onChange={(e) => ubahField("jam", e.target.value)} /></label>
+            <label><span className="cap">Lokasi</span><input className="masukkan" value={form.lokasi} onChange={(e) => ubahField("lokasi", e.target.value)} placeholder="Misal: Gedung serbaguna" /></label>
+            <label><span className="cap">Toleransi keterlambatan: {form.toleransi} menit</span><input type="range" min="0" max="30" value={form.toleransi} onChange={(e) => ubahField("toleransi", e.target.value)} className="w-full" /></label>
+            <label><span className="cap">Ketentuan dan catatan</span><textarea className="masukkan" rows="2" value={form.catatan} onChange={(e) => ubahField("catatan", e.target.value)} /></label>
+            {galat && <p role="alert" className="toast" style={{ borderColor: "var(--bata)", color: "var(--bata)" }}>{galat}</p>}
+            <div className="flex gap-2">
+              <button className="btn btn-kertas" type="button" onClick={tutupForm}>Batal</button>
+            </div>
+          </form>
+        </Dialog>
+      )}
     </div>
   );
 }

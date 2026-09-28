@@ -109,7 +109,7 @@ export function hitungFee(rekap) {
     { label: "Sakit", jumlah: rekap.sakit ?? 0, tarif: 0, catatan: "Sakit disetujui, tanpa potongan" },
     { label: "Alpa", jumlah: alpa, tarif: POTONGAN_ALPA, catatan: "RULE-03" },
   ].map((baris) => ({ ...baris, potongan: baris.jumlah * baris.tarif }));
-  if (lain > 0) rincian.push({ label: "Potongan lain", jumlah: 1, tarif: lain, potongan: lain, catatan: "Koreksi admin" });
+  if (lain > 0) rincian.push({ label: "Potongan lain", jumlah: null, tarif: lain, potongan: lain, catatan: "Koreksi admin" });
   const total = rincian.reduce((n, baris) => n + baris.potongan, 0);
   return { rincian, total, dasar: FEE_DASAR, fee: Math.max(FEE_DASAR - total, 0) };
 }

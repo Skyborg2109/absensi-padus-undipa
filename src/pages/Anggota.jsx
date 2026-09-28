@@ -114,11 +114,24 @@ function Dasbor({ saya }) {
         <div className="p-5" style={{ background: "var(--tinta)", color: "#fff", borderRadius: "var(--radius-laci)" }}>
           <p className="keterangan font-semibold" style={{ color: "#C9CAE8" }}>Status tampilmu</p>
           <p className="judul-bab mt-1 text-3xl">{lay.label}</p>
-          <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>{lay.sebab}. Hadir {hadir} kali, terlambat {lambat} kali.</p>
+          <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>{lay.sebab}.</p>
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {[["Hadir", hadir], ["Terlambat", lambat], ["Izin", izin], ["Sakit", sakit], ["Alpa", alpa]].map(([label, jumlah]) => (
+              <div key={label} className="rounded-xl px-2 py-2 text-center" style={{ background: "rgba(255,255,255,.08)" }}>
+                <p className="display angka text-2xl">{jumlah}</p>
+                <p className="keterangan m-0" style={{ color: "#C9CAE8" }}>{label}</p>
+              </div>
+            ))}
+          </div>
           <div className="mt-4 border-t pt-4" style={{ borderColor: "rgba(255,255,255,.2)" }}>
             <p className="keterangan" style={{ color: "#C9CAE8" }}>Perkiraan fee</p>
             <p className="display angka text-4xl">{rupiah(fee.fee)}</p>
-            <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>Dasar {rupiah(fee.dasar)} dikurangi {rupiah(fee.total)} dari riwayatmu. Final setelah verifikasi admin.</p>
+            <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>
+              {fee.total === 0
+                ? `Tidak ada potongan dari ${hadir} hadir, ${izin} izin, dan ${sakit} sakit.`
+                : `Dasar ${rupiah(fee.dasar)} dikurangi ${rupiah(fee.total)}: ${potonganLabel(fee)}. `}
+              Final setelah verifikasi admin.
+            </p>
           </div>
         </div>
         <div className="buku">
@@ -138,31 +151,16 @@ function Dasbor({ saya }) {
           </div>
         </div>
       </div>
-      <div className="buku mt-4">
-        <div className="baris" style={{ background: "var(--kertas-2)" }}><b>Fee dari riwayatmu</b></div>
-        <div className="baris">
-          <span className="flex-1 text-sm">Kehadiran</span>
-          <span className="flex-1 text-sm keterangan">Terlambat {lambat} · Izin {izin} · Sakit {sakit} · Alpa {alpa}</span>
-          <Lencana nada={alpa > 0 ? "alpa" : "hadir"} anak={`${hadir} hadir`} />
-        </div>
-        {fee.rincian.map((baris) => (
-          <div key={baris.label} className="baris">
-            <span className="flex-1 text-sm"><b>{baris.label}</b> <span className="keterangan">×{baris.jumlah} {baris.catatan}</span></span>
-            <span className="angka shrink-0 text-sm">{baris.potongan === 0 ? "Tanpa potongan" : `−${rupiah(baris.potongan)}`}</span>
-          </div>
-        ))}
-        <div className="baris" style={{ background: "var(--kertas-2)" }}>
-          <span className="flex-1 text-sm"><b>Total potongan</b> <span className="keterangan">dari fee dasar {rupiah(fee.dasar)}</span></span>
-          <span className="angka shrink-0 text-sm font-extrabold">−{rupiah(fee.total)}</span>
-        </div>
-        <div className="baris">
-          <span className="flex-1 text-sm font-extrabold">Perkiraan fee kamu</span>
-          <span className="angka shrink-0 text-lg font-extrabold" style={{ color: "var(--beludru)" }}>{rupiah(fee.fee)}</span>
-        </div>
-        <p className="keterangan p-3">Jumlah hadir, terlambat, izin, sakit, dan alpa di sini sama dengan angka di rekap admin. Potongan memakai RULE-02 (Rp5.000 per terlambat) dan RULE-03 (Rp10.000 per alpa); izin dan sakit yang disetujui tidak dipotong. Semua angka bisa dikoreksi admin.</p>
-      </div>
     </div>
   );
+}
+
+/* Ringkasan potongan fee: "terlambat 2 × Rp5.000 + alpa 1 × Rp10.000". */
+function potonganLabel(fee) {
+  return fee.rincian
+    .filter((baris) => baris.potongan > 0)
+    .map((baris) => `${baris.label.toLowerCase()}${baris.jumlah === null ? "" : ` ${baris.jumlah}`} × ${rupiah(baris.tarif)}`)
+    .join(" + ");
 }
 
 /* Pindai sungguhan: kamera membaca QR sesi + GPS memeriksa radius 100 m.

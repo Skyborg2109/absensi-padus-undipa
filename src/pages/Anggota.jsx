@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Dialog, Lencana, KepalaBab, PetaRadius, TombolKeluar } from "../components/ui.jsx";
-import { hitungRekap, rupiah, nilaiKelayakan } from "../data/mock.js";
+import { hitungFee as hitungFeeAnggota, hitungRekap, rupiah, nilaiKelayakan } from "../data/mock.js";
 import { pakaiAuth } from "../lib/auth.jsx";
 import { pakaiToko } from "../lib/toko.jsx";
 
@@ -85,7 +85,7 @@ function Dasbor({ saya }) {
   const alpa = rekap.alpa;
   const potongan = rekap.potongan;
   const lay = nilaiKelayakan({ ...saya, hadir, lambat, izin, sakit, alpa, potongan });
-  const fee = Math.max(250000 - potongan, 0);
+  const fee = hitungFeeAnggota(rekap);
   return (
     <div className="muncul">
       <KepalaBab atas={sesi ? "Ada latihan" : "Belum ada sesi"} judul={`Halo, ${saya.nama.split(" ")[0]}.`} Charity={sesi ? `Sesi ${sesi.nama} di ${sesi.lokasi}. Datang sebelum ${sesi.batasTepat} agar tercatat tepat waktu.` : "Admin belum membuka sesi. Jadwal baru akan muncul di bawah saat ditambahkan."} />
@@ -117,8 +117,8 @@ function Dasbor({ saya }) {
           <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>{lay.sebab}. Hadir {hadir} kali, terlambat {lambat} kali.</p>
           <div className="mt-4 border-t pt-4" style={{ borderColor: "rgba(255,255,255,.2)" }}>
             <p className="keterangan" style={{ color: "#C9CAE8" }}>Perkiraan fee</p>
-            <p className="display angka text-4xl">{rupiah(fee)}</p>
-            <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>Dasar Rp250.000 dikurangi {rupiah(potongan)}. Final setelah verifikasi admin.</p>
+            <p className="display angka text-4xl">{rupiah(fee.fee)}</p>
+            <p className="mt-1 text-sm" style={{ color: "#C9CAE8" }}>Dasar {rupiah(fee.dasar)} dikurangi {rupiah(fee.total)} dari riwayatmu. Final setelah verifikasi admin.</p>
           </div>
         </div>
         <div className="buku">
@@ -137,6 +137,29 @@ function Dasbor({ saya }) {
             )}
           </div>
         </div>
+      </div>
+      <div className="buku mt-4">
+        <div className="baris" style={{ background: "var(--kertas-2)" }}><b>Fee dari riwayatmu</b></div>
+        <div className="baris">
+          <span className="flex-1 text-sm">Kehadiran</span>
+          <span className="flex-1 text-sm keterangan">Terlambat {lambat} · Izin {izin} · Sakit {sakit} · Alpa {alpa}</span>
+          <Lencana nada={alpa > 0 ? "alpa" : "hadir"} anak={`${hadir} hadir`} />
+        </div>
+        {fee.rincian.map((baris) => (
+          <div key={baris.label} className="baris">
+            <span className="flex-1 text-sm"><b>{baris.label}</b> <span className="keterangan">×{baris.jumlah} {baris.catatan}</span></span>
+            <span className="angka shrink-0 text-sm">{baris.potongan === 0 ? "Tanpa potongan" : `−${rupiah(baris.potongan)}`}</span>
+          </div>
+        ))}
+        <div className="baris" style={{ background: "var(--kertas-2)" }}>
+          <span className="flex-1 text-sm"><b>Total potongan</b> <span className="keterangan">dari fee dasar {rupiah(fee.dasar)}</span></span>
+          <span className="angka shrink-0 text-sm font-extrabold">−{rupiah(fee.total)}</span>
+        </div>
+        <div className="baris">
+          <span className="flex-1 text-sm font-extrabold">Perkiraan fee kamu</span>
+          <span className="angka shrink-0 text-lg font-extrabold" style={{ color: "var(--beludru)" }}>{rupiah(fee.fee)}</span>
+        </div>
+        <p className="keterangan p-3">Jumlah hadir, terlambat, izin, sakit, dan alpa di sini sama dengan angka di rekap admin. Potongan memakai RULE-02 (Rp5.000 per terlambat) dan RULE-03 (Rp10.000 per alpa); izin dan sakit yang disetujui tidak dipotong. Semua angka bisa dikoreksi admin.</p>
       </div>
     </div>
   );

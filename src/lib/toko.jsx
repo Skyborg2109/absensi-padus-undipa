@@ -14,6 +14,10 @@ function idBaru(awalan) {
   return `${awalan}${Date.now().toString(36)}${hitung}`;
 }
 
+/* Alpa hanya boleh tercatat satu kali per sesi, walau hapus sesi dipanggil
+   dari tombol admin maupun pemeriksaan otomatis. */
+const sesiAlpaTercatat = new Set();
+
 function jamKini() {
   return new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 }
@@ -479,25 +483,99 @@ export function PenyediaToko({ children }) {
     setToko((t) => ({ ...t, sesi: { ...t.sesi, status } }));
     if (status === "terbuka") tambahNotifikasi(`Sesi dibuka: ${toko.sesi.nama}`, `QR aktif di ${toko.sesi.lokasi}. Pastikan GPS aktif sebelum memindai.`);
     else if (status === "jeda") tambahNotifikasi("Sesi dijeda sementara", "Kode QR tidak berlaku. Tunggu admin membuka kembali.");
-    else if (status === "ditutup") tambahNotifikasi(`Sesi ditutup: ${toko.sesi.nama}`, "Anggota yang belum terpindai tercatat sebagai kandidat tidak hadir.");
-    return { ok: true };
-  }
-
-  async function hapusSesi() {
-    if (!toko.sesi) return { gagal: "Sesi tidak ditemukan." };
-    if (toko.sesi.status !== "ditutup") return { gagal: "Tutup sesi terlebih dahulu sebelum menghapus." };
-    if (supabaseAktif) {
-      const { error } = await supabase.from("sesi").delete().eq("id", toko.sesi.id);
-      if (error) return { gagal: pesanGalat(error, "Sesi gagal dihapus dari Supabase.") };
-    }
-    const namaSesi = toko.sesi.nama;
-    setToko((t) => ({ ...t, sesi: null }));
-    tambahNotifikasi(`Sesi dihapus: ${namaSesi}`, "Riwayat absensi sesi tetap tersimpan dan tidak ikut terhapus.");
+    else if (status === "ditutup") tambahNotifikasi(`Sesi ditutup: ${toko.sesi.nama}`, "Anggota yang belum terpindai menjadi kandidat alpa. Menghapus sesi akan menetapkan alpa final.");
     return { ok: true };
   }
 
   function sudahAbsen(anggotaId, token) {
     return toko.absensi.some((r) => r.anggotaId === anggotaId && r.token === token);
+  }
+
+  /* Anggota yang punya izin atau sakit yang sudah disetujui admin tidak
+     dihitung alpa — keputusannya sudah diberikan sebelum sesi dihapus. */
+  function adaIzinDisetujui(anggotaId) {
+    return toko.pengajuan.some((p) => p.anggotaId === anggotaId && p.status === "Disetujui" && (p.jenis === "Izin" || p.jenis === "Sakit"));
+  }
+
+  /* Sesi yang ditutup lalu dihapus berarti anggota yang tidak memindai tidak
+     hadir. Angka alpa ditulis ke data kehadiran anggota, atau ke koreksi admin
+     bila koreksi itu ada, supaya rekap admin langsung menampilkannya. */
+  async function tetapkanAlpaSesi(sesi) {
+    const kosong = { ok: true, alpa: [], dilewati: [] };
+    if (sesiAlpaTercatat.has(sesi.id)) return kosong;
+    sesiAlpaTercatat.add(sesi.id);
+
+    const sudah = new Set(toko.absensi.filter((r) => r.token === sesi.token).map((r) => r.anggotaId));
+    const belum = toko.daftarAnggota.filter((a) => !sudah.has(a.id));
+    const dilewati = belum.filter((a) => adaIzinDisetujui(a.id)).map((a) => a.nama);
+    const kena = belum.filter((a) => !adaIzinDisetujui(a.id));
+    if (kena.length === 0) return { ...kosong, dilewati };
+
+    const perubahan = kena.map((a) => {
+      const koreksi = toko.koreksiRekap.find((item) => item.anggotaId === a.id);
+      return {
+        anggotaId: a.id,
+        nama: a.nama,
+        pakaiKoreksi: Boolean(koreksi),
+        alpaBaru: ((koreksi ? koreksi.alpa : a.alpa) ?? 0) + 1,
+        diperbaruiPada: new Date().toISOString(),
+      };
+    });
+
+    const gagal = [];
+    if (supabaseAktif) {
+      for (const p of perubahan) {
+        const { error } = p.pakaiKoreksi
+          ? await supabase.from("rekap_koreksi").update({ alpa: p.alpaBaru, updated_at: p.diperbaruiPada }).eq("member_id", p.anggotaId)
+          : await supabase.from("profiles").update({ alpa: p.alpaBaru }).eq("id", p.anggotaId);
+        if (error) gagal.push(p.nama);
+      }
+    }
+    const berhasil = perubahan.filter((p) => !gagal.includes(p.nama));
+    setToko((t) => ({
+      ...t,
+      daftarAnggota: t.daftarAnggota.map((a) => {
+        const p = berhasil.find((x) => x.anggotaId === a.id && !x.pakaiKoreksi);
+        return p ? { ...a, alpa: p.alpaBaru } : a;
+      }),
+      koreksiRekap: t.koreksiRekap.map((k) => {
+        const p = berhasil.find((x) => x.anggotaId === k.anggotaId && x.pakaiKoreksi);
+        return p ? { ...k, alpa: p.alpaBaru, diperbaruiPada: p.diperbaruiPada } : k;
+      }),
+    }));
+    if (gagal.length > 0) {
+      return { gagal: `Alpa ${berhasil.length} anggota tercatat, tetapi gagal untuk: ${gagal.join(", ")}. Periksa rekap admin dan tetapkan manual lewat koreksi.` };
+    }
+    return { ok: true, alpa: berhasil.map((p) => p.nama), dilewati };
+  }
+
+  async function hapusSesi() {
+    const sesi = toko.sesi;
+    if (!sesi) return { gagal: "Sesi tidak ditemukan." };
+    if (sesi.status !== "ditutup") return { gagal: "Tutup sesi terlebih dahulu sebelum menghapus." };
+    if (supabaseAktif) {
+      const { error } = await supabase.from("sesi").delete().eq("id", sesi.id);
+      if (error) return { gagal: pesanGalat(error, "Sesi gagal dihapus dari Supabase.") };
+    }
+    const hasil = await tetapkanAlpaSesi(sesi);
+    setToko((t) => ({ ...t, sesi: null }));
+    if (hasil.gagal) return hasil;
+    if (hasil.alpa.length > 0) {
+      tambahNotifikasi(
+        `Alpa tercatat: ${hasil.alpa.length} anggota`,
+        `Tidak memindai QR sampai sesi ${sesi.nama} dihapus. Namely: ${hasil.alpa.slice(0, 5).join(", ")}${hasil.alpa.length > 5 ? ` dan ${hasil.alpa.length - 5} lainnya` : ""}. Angka final ada di rekap admin.`
+      );
+    }
+    if (hasil.dilewati.length > 0) {
+      tambahNotifikasi(
+        `Izin disetujui, tidak dihitung alpa: ${hasil.dilewati.length} anggota`,
+        `${hasil.dilewati.slice(0, 5).join(", ")}. Tetapkan angka izin atau sakit lewat koreksi rekap agar potongannya sesuai.`
+      );
+    }
+    if (hasil.alpa.length === 0 && hasil.dilewati.length === 0) {
+      tambahNotifikasi(`Sesi dihapus: ${sesi.nama}`, "Semua anggota sudah terpindai. Riwayat absensi sesi tetap tersimpan dan tidak ikut terhapus.");
+    }
+    return { ok: true, alpa: hasil.alpa, dilewati: hasil.dilewati };
   }
 
   function absensiSesi(token) {

@@ -374,7 +374,26 @@ function Sesi() {
   const { sesi, bukaSesi, aturSesi, hapusSesi, absensiSesi, aturUlang, daftarAnggota } = pakaiToko();
   const [konfirmasiHapus, setKonfirmasiHapus] = useState(false);
   const [pesan, setPesan] = useState("");
-  if (!sesi) return <SesiBaru onBuka={bukaSesi} />;
+  const [hasilHapus, setHasilHapus] = useState(null);
+  if (!sesi) {
+    return (
+      <>
+        {hasilHapus && (
+          <div className="toast mb-4 muncul" role="status" style={{ borderColor: "var(--daun)" }}>
+            <p className="font-extrabold">Sesi dihapus. {hasilHapus.alpa.length > 0 ? `${hasilHapus.alpa.length} anggota dinyatakan alpa` : "Semua anggota sudah terpindai"}.</p>
+            {hasilHapus.alpa.length > 0 && (
+              <p className="keterangan mt-1">Alpa: {hasilHapus.alpa.join(", ")}. Angka ini langsung muncul di rekap dan bisa diubah lewat koreksi.</p>
+            )}
+            {hasilHapus.dilewati.length > 0 && (
+              <p className="keterangan mt-1">Tidak dihitung alpa karena izin/sakitnya sudah disetujui: {hasilHapus.dilewati.join(", ")}. Tetapkan angka izin atau sakit lewat koreksi rekap.</p>
+            )}
+            <div className="mt-3"><Link className="btn btn-primer" to="/admin/rekap">Buka rekap</Link></div>
+          </div>
+        )}
+        <SesiBaru onBuka={bukaSesi} />
+      </>
+    );
+  }
   const buka = sesi.status === "terbuka";
   const ditutup = sesi.status === "ditutup";
   const sudah = absensiSesi(sesi.token);
@@ -384,8 +403,10 @@ function Sesi() {
     const hasil = await hapusSesi();
     if (hasil?.gagal) {
       setPesan(hasil.gagal);
+      setKonfirmasiHapus(false);
       return;
     }
+    setHasilHapus({ alpa: hasil.alpa ?? [], dilewati: hasil.dilewati ?? [] });
     setKonfirmasiHapus(false);
   }
 
@@ -426,7 +447,7 @@ function Sesi() {
                       </button>
                     }
                   >
-                    <p className="keterangan mt-2">Riwayat absensi tetap tersimpan, tetapi sesi dan QR tidak dapat digunakan lagi.</p>
+                     <p className="keterangan mt-2">Riwayat absensi tetap tersimpan, tetapi sesi dan QR tidak dapat digunakan lagi. {kandidat.length > 0 ? `${kandidat.length} anggota yang belum terpindai akan dinyatakan alpa dan langsung masuk ke rekap. ` : ""}Anggota dengan izin atau sakit yang sudah disetujui tidak dihitung alpa.</p>
                   </Dialog>
                 )}
             </>
@@ -459,12 +480,12 @@ function Sesi() {
                 {kandidat.length > 0
                   ? `Belum terpindai: ${kandidat.slice(0, 5).map((a) => a.nama.split(" ")[0]).join(", ")}${kandidat.length > 5 ? ` dan ${kandidat.length - 5} lainnya` : ""}. `
                   : "Semua anggota sudah terpindai. "}
-                Mereka tercatat sebagai kandidat tidak hadir — belum menjadi potongan final. Periksa izin dan sakit sebelum menetapkan status akhir.
+                Periksa izin dan sakit sebelum menghapus sesi - menghapus sesi menetapkan alpa final untuk anggota yang belum terpindai.
               </p>
               <div className="mt-3 flex gap-2"><Link className="btn btn-primer" to="/admin/izin">Verifikasi sekarang</Link></div>
             </div>
           ) : (
-            <p className="keterangan">Menutup sesi akan menandai anggota yang belum terpindai sebagai kandidat tidak hadir, sesuai alur FR-07.</p>
+            <p className="keterangan">Menutup sesi akan menandai anggota yang belum terpindai sebagai kandidat alpa. Menghapus sesi yang sudah ditutup menetapkan alpa final di rekap.</p>
           )}
           <button type="button" className="keterangan mt-4 font-bold" style={{ color: "var(--tinta-lunak)" }} onClick={aturUlang}>
             Kosongkan semua data (atur ulang pengujian)

@@ -42,6 +42,10 @@ export const aturan = [
 export const rupiah = (n) =>
   "Rp" + n.toLocaleString("id-ID");
 
+export const FEE_DASAR = 250000; // RULE-01
+export const POTONGAN_TERLAMBAT = 5000; // RULE-02 per kejadian
+export const POTONGAN_ALPA = 10000; // RULE-03 per kejadian
+
 export function nilaiKelayakan(a) {
   if (a.alpa >= 3) return { label: "Tidak bisa ikut serta", nada: "alpa", sebab: `${a.alpa} kali tidak hadir` };
   if (a.alpa === 2) return { label: "Satu absen lagi gugur", nada: "lambat", sebab: "Sudah 2 kali tidak hadir" };
@@ -82,10 +86,30 @@ export function hitungRekap(anggota, seluruhPindaian, koreksi) {
     ...dasar,
     hadir: dasar.hadir + tepat,
     terlambat: dasar.terlambat + lambat,
-    potongan: dasar.potongan + lambat * 5000,
+    potongan: dasar.potongan + lambat * POTONGAN_TERLAMBAT,
+    potonganLain: dasar.potongan,
     tepatBaru: tepat,
     lambatBaru: lambat,
     catatan: adaKoreksi ? koreksi.catatan ?? "" : "",
     manual: adaKoreksi,
   };
+}
+
+/* Rincian fee dihitung dari angka riwayat anggota sendiri: hadir dan izin/
+   sakit tidak dipotong, terlambat dan alpa dipotong per kejadian, dan
+   potongan lain berasal dari koreksi admin. */
+export function hitungFee(rekap) {
+  const terlambat = rekap.terlambat ?? 0;
+  const alpa = rekap.alpa ?? 0;
+  const lain = Math.max(rekap.potonganLain ?? 0, 0);
+  const rincian = [
+    { label: "Hadir", jumlah: rekap.hadir ?? 0, tarif: 0, catatan: "RULE-01" },
+    { label: "Terlambat", jumlah: terlambat, tarif: POTONGAN_TERLAMBAT, catatan: "RULE-02" },
+    { label: "Izin", jumlah: rekap.izin ?? 0, tarif: 0, catatan: "Izin disetujui, tanpa potongan" },
+    { label: "Sakit", jumlah: rekap.sakit ?? 0, tarif: 0, catatan: "Sakit disetujui, tanpa potongan" },
+    { label: "Alpa", jumlah: alpa, tarif: POTONGAN_ALPA, catatan: "RULE-03" },
+  ].map((baris) => ({ ...baris, potongan: baris.jumlah * baris.tarif }));
+  if (lain > 0) rincian.push({ label: "Potongan lain", jumlah: 1, tarif: lain, potongan: lain, catatan: "Koreksi admin" });
+  const total = rincian.reduce((n, baris) => n + baris.potongan, 0);
+  return { rincian, total, dasar: FEE_DASAR, fee: Math.max(FEE_DASAR - total, 0) };
 }
